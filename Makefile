@@ -2,9 +2,9 @@
 
 
 ## Filepaths
-
-humanDir = path/to/Human-GEM/ #TODO
-synapseDir = /proj/[proj-id]/synapseFiles #TODO
+include filepaths.mk #local to your machine, write your paths in here or change the below variables
+humanDir = $(HUMAN_GEM_PATH)
+synapseDir = $(SYNAPSE_DATA_PATH)
 scriptDir = code
 
 
@@ -16,30 +16,30 @@ build: ;
 ## Differential Expression Analysis
 
 ### Generate Plots
-ROSMAP_UMAP.png: ROSMAP_dds_processed.rds $scriptDir/someScript
+ROSMAP_UMAP.png: ROSMAP_dds_processed.rds $(scriptDir)/someScript
 	touch ROSMAP_UMAP.png
 
 ### Test for technical variation
-technical_var.png: ROSMAP_dds_processed.rds $scriptDir/someScript
+technical_var.png: ROSMAP_dds_processed.rds $(scriptDir)/someScript
 	touch technical_var.png
 
 ### Process the data set
-ROSMAP_dds_processed.rds: ROSMAP_dds.rds $scriptDir/someScript
+ROSMAP_dds_processed.rds: ROSMAP_dds.rds $(scriptDir)/someScript
 	touch ROSMAP_dds_processed.rds
 
 ### Create the DESeqDataSet from count matrix and metadata
-ROSMAP_dds.rds: $synapseDir/[someFiles] $scriptDir/someScript
+ROSMAP_dds.rds: $(synapseDir)/[someFiles] $scriptDir/someScript
 	touch ROSMAP_dds.rds
 
 
 ## Structural GEM construction
 
 ### Construct structural GEMs from a reference model and gene expression data
-models.mat: preparedRefModel.mat $synapseDir/someFile $scriptDir/someScript 
+models.mat: preparedRefModel.mat $(synapseDir)/someFile $(scriptDir)/someScript 
 	touch models.mat
 
 ### Prepare the reference model with essential tasks and spontaneous reactions
-preparedRefModel.mat: $humanDir/[someFiles] $scriptDir/someScript 
+preparedRefModel.mat: $(humanDir)/[someFiles] $(scriptDir)/someScript 
 	touch preparedRefModel.mat
 
 
