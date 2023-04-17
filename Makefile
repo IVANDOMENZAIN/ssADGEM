@@ -12,6 +12,9 @@ human_dep = model/model.mat model/reactions.tsv code/io code/tINIT \
 
 matlab = matlab -nodisplay -batch
 
+ROSMAP_dep = ROSMAP_all_counts_matrix.txt ROSMAP_assay_RNAseq_metadata.csv \
+	ROSMAP_clinical.csv ROSMAP_biospecimen_metadata.csv
+
 ## Placeholder
 
 build: ;
@@ -32,8 +35,8 @@ ROSMAP_dds_processed.rds: ROSMAP_dds.rds code/someScript
 	touch ROSMAP_dds_processed.rds
 
 ### Create the DESeqDataSet from count matrix and metadata
-ROSMAP_dds.rds: $(synapse_dir)/[someFiles] code/someScript
-	touch ROSMAP_dds.rds
+ROSMAP_dds.rds: $(synapse_dir)/$(ROSMAP_dep) code/ROSMAP_fileParser.R
+	./ROSMAP_fileParser.R $(synapse_dir) data/ROSMAP_dds.rds
 
 ## Structural GEM construction
 
