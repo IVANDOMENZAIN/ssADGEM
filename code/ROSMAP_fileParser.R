@@ -32,32 +32,28 @@ setwd(working_directory)
 dimnames(count_matrix)[[2]] <- sub("X", "", dimnames(count_matrix)[[2]])
 
 ## Function to remove na columns and rows
-cleanDF <- function(df) {
-  
+clean_df <- function(df) {
   # Remove na cols
-  good_cols = c()
-  for (col_idx in 1:length(df)) {
+  good_cols <- c()
+  for (col_idx in seq_along(length(df))) {
     if (any(complete.cases(df[[col_idx]])))
       good_cols <- append(good_cols, col_idx)
   }
-  df <- df[,good_cols]
-  
+  df <- df[, good_cols]
   # Remove na rows
-  good_rows = c()
-  for (row_idx in 1:nrow(df)) {
-    if (any(complete.cases(df[row_idx,])))
+  good_rows <- c()
+  for (row_idx in seq_along(nrow(df))) {
+    if (any(complete.cases(df[row_idx, ])))
       good_rows <- append(good_rows, row_idx)
   }
-  df <- df[good_rows,]
-  
+  df <- df[good_rows, ]
   # Remove cols with no info
-  good_cols = c()
-  for (col_idx in 1:length(df)) {
+  good_cols <- c()
+  for (col_idx in seq_along(length(df))) {
     if (!(length(unique(df[[col_idx]])) == 1))
       good_cols <- append(good_cols, col_idx)
   }
-  df <- df[,good_cols]
-  
+  df <- df[, good_cols]
   return(df)
 }
 
@@ -67,17 +63,17 @@ cleanDF <- function(df) {
 id_of_interest <- colnames(count_matrix)
 
 idx <- match(id_of_interest, rnaseq_metadata$specimenID)
-rnaseq_metadata <- rnaseq_metadata[idx,]
-rnaseq_metadata = cleanDF(rnaseq_metadata)
+rnaseq_metadata <- rnaseq_metadata[idx, ]
+rnaseq_metadata <- cleanDF(rnaseq_metadata)
 
 idx <- match(id_of_interest, biospecimen_metadata$specimenID)
-biospecimen_metadata <- biospecimen_metadata[idx,]
-biospecimen_metadata = cleanDF(biospecimen_metadata)
+biospecimen_metadata <- biospecimen_metadata[idx, ]
+biospecimen_metadata <- cleanDF(biospecimen_metadata)
 
 ### Clinical metadata has no specimenID
-individualID_of_interest <- biospecimen_metadata$individualID
-idx <- match(individualID_of_interest, clinical_metadata$individualID)
-clinical_metadata <- clinical_metadata[idx,]
+individual_id_of_interest <- biospecimen_metadata$individualID
+idx <- match(individual_id_of_interest, clinical_metadata$individualID)
+clinical_metadata <- clinical_metadata[idx, ]
 
 # Merge them into one dataframe by specimenID
 annotation_df <- merge(rnaseq_metadata, biospecimen_metadata, by = "specimenID")
