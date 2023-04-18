@@ -35,5 +35,29 @@ idx <- match(
     )
 clinical_metadata$specimenID <- biospecimen_metadata$specimenID[idx]
 
-## We can discard rows that have no column in counts
-###HOW DO I DO THIS??? INVESTIGATE
+## We can pick out rows of interest and discard the rest,
+## additionally we sort them to the same order
+id_of_interest <- colnames(count_matrix)
+
+tmp <- match(id_of_interest, rnaseq_metadata$specimenID)
+rnaseq_metadata <- rnaseq_metadata[, colnames(count_matrix)]
+
+tmp <- match(id_of_interest, clinical_metadata$specimenID)
+clinical_metadata <- clinical_metadata[, colnames(count_matrix)]
+
+tmp <- match(id_of_interest, biospecimen_metadata$specimenID)
+biospecimen_metadata <- biospecimen_metadata[, colnames(count_matrix)]
+
+# Merge them into one dataframe by specimenID
+annotation_df <- merge(rnaseq_metadata, clinical_metadata, by = "specimenID")
+annotation_df <- merge(annotation_df, biospecimen_metadata, by = "specimenID")
+
+# Construct the DESeq data set (dds), no design in this function
+dds <- DESeqDataSetFromMatrix(
+  countData = count_matrix,
+  colData = annotation_df,
+  design = ~ 1
+  )
+
+# Save the dds
+save(dds, file = target_path)
