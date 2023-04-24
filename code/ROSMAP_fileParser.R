@@ -15,8 +15,8 @@ if (!interactive()) {
 
 
 # Needed libraries
-library("tidyverse")
-library("magrittr")
+library("tidyverse") # Tibble dataframes
+library("magrittr") # Piping
 library("DESeq2")
 
 # Read all files
@@ -49,8 +49,31 @@ annotation_df %<>% merge(clinical_metadata,
 ## Format in file is 'X<specimenID>', we substitute 'X' to ''
 dimnames(count_matrix)[[2]] %<>% sub("X", "", .)
 
-## count_matrix has some odd entries that should be removed,
-## LOOK AT 150_XXXXX_0_merged and redo4_XXXXX
+## count_matrix has some that should be removed
+if (all(count_matrix[, "150_120419"] == count_matrix[, "150_120419_0_merged"])) {
+  
+  idx <- which(dimnames(count_matrix)[[2]] == "150_120419_0_merged")
+  count_matrix <- count_matrix[, -idx]
+}
+
+
+for (col_id in count_matrix %>% colnames()) {
+  
+  if (col_id %in% biospecimen_metadata$specimenID) {
+    idx <- biospecimen_metadata %>%
+      nrow() %>% 1:. %>%
+      .[biospecimen_metadata$specimenID == col_id]
+    
+    is_excluded <- idx %>%
+      biospecimen_metadata$exclude[.] %>%
+      any(na.rm = TRUE)
+    
+    if (is_excluded) {
+      which() STARTHERE
+      count_matrix <- count_matrix[, -col_id]
+    }
+  }
+}
 
 ## We can pick out rows of interest and discard the rest,
 ## additionally we sort them to the same order
