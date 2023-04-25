@@ -9,8 +9,9 @@ if (!interactive()) {
   directory_path <- args[1]
   target_path <- args[2]
 } else {
-  # Bad code, remember to remove
+  # For using interactively, change paths to appropriate
   directory_path <- "/castor/project/home/gasto/sens2023522/synapseFiles"
+  target_path <- "/castor/project/home/gasto/ssADGEM/data/ROSMAP_dds.rds"
 }
 
 
@@ -21,7 +22,7 @@ library("DESeq2")
 
 # Read all files
 working_directory <- getwd()
-setwd(directory_path)
+directory_path %>% setwd
 
 count_matrix <- "ROSMAP_all_counts_matrix.txt" %>%
   read_delim(delim = "\t") %>%
@@ -32,7 +33,7 @@ rnaseq_metadata <- read_csv("ROSMAP_assay_rnaSeq_metadata.csv")
 clinical_metadata <- read_csv("ROSMAP_clinical.csv")
 biospecimen_metadata <- read_csv("ROSMAP_biospecimen_metadata.csv")
 
-setwd(working_directory)
+working_directory %>% setwd
 
 # Merge annotation data into one dataframe by specimenID and individualID
 annotation_df <- merge(rnaseq_metadata, biospecimen_metadata,
@@ -56,21 +57,28 @@ if (all(count_matrix[, "150_120419"] == count_matrix[, "150_120419_0_merged"])) 
   count_matrix <- count_matrix[, -idx]
 }
 
-
 for (col_id in count_matrix %>% colnames()) {
   
-  if (col_id %in% biospecimen_metadata$specimenID) {
-    idx <- biospecimen_metadata %>%
-      nrow() %>% 1:. %>%
-      .[biospecimen_metadata$specimenID == col_id]
+  if (col_id %in% annotation_df$specimenID) {
+    
+    idx <- which(
+      annotation_df$specimenID == col_id &
+      annotation_df$assay == "rnaSeq"
+      )
     
     is_excluded <- idx %>%
-      biospecimen_metadata$exclude[.] %>%
-      any(na.rm = TRUE)
+      annotation_df$exclude[.] %>%
+      any(na.rm = TRUE) 
     
-    if (is_excluded) {
-      which() STARTHERE
-      count_matrix <- count_matrix[, -col_id]
+    lacks_cogdx <- idx %>%
+      annotation_df$cogdx[.] %>%
+      is.na 
+    
+    if (is_excluded | lacks_cogdx) {
+      col_idx <- which(
+        dimnames(count_matrix)[[2]] == col_id
+        )
+      count_matrix <- count_matrix[, -col_idx]
     }
   }
 }
@@ -99,21 +107,32 @@ annotation_df %<>%
     match(specimenID, id_of_interest)
   )
 
-### Some are missing!!!
-# Two samples were swapped in biospec and are excluded
-# There is a redo and merge???
+# Make sure there are no missing values
 missing <- biospecimen_metadata %>%
   filter(
     specimenID %in% id_of_interest,
     !(specimenID %in% annotation_df$specimenID)
   )
+if (nrow(missing) > 0) {
+  stop("There are unannotated samples in the counts", call. = FALSE)
+}
 
-# Construct the DESeq data set (dds), no design in this function
+
+# Construct the DESeq data set (dds),
+# design is irrelevant as it will be changed later
 dds <- DESeqDataSetFromMatrix(
   countData = count_matrix,
   colData = annotation_df,
-  design = ~ "ADD DESIGN FOR AD OR NOT"
+  design = ~ 1
   )
 
 # Save the dds
-save(dds, file = target_path)
+target_path %>%
+  dirname %>%
+  setwd
+
+target_path %>%
+  basename %>%
+  save(dds, file = ., compress = TRUE)
+
+working_directory %>% setwd

@@ -13,7 +13,7 @@ human_files = model/model.mat model/reactions.tsv code/io code/tINIT \
 	data/metabolicTasks/metabolicTasks_Essential.txt
 human_dep = $(addprefix $(human_dir)/, $(human_files))
 
-ROSMAP_files = ROSMAP_all_counts_matrix.txt ROSMAP_assay_RNAseq_metadata.csv \
+ROSMAP_files = ROSMAP_all_counts_matrix.txt ROSMAP_assay_rnaSeq_metadata.csv \
 	ROSMAP_clinical.csv ROSMAP_biospecimen_metadata.csv
 ROSMAP_dep = $(addprefix $(synapse_dir)/, $(ROSMAP_files))
 
