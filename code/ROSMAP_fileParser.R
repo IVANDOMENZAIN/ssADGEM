@@ -50,13 +50,16 @@ annotation_df %<>% merge(clinical_metadata,
 ## Format in file is 'X<specimenID>', we substitute 'X' to ''
 dimnames(count_matrix)[[2]] %<>% sub("X", "", .)
 
-## count_matrix has some that should be removed
+## count_matrix has some entries that should be removed
+
+### Weird duplication 
 if (all(count_matrix[, "150_120419"] == count_matrix[, "150_120419_0_merged"])) {
   
   idx <- which(dimnames(count_matrix)[[2]] == "150_120419_0_merged")
   count_matrix <- count_matrix[, -idx]
 }
 
+### Set as excluded in metadata or lacks clinical annotation
 for (col_id in count_matrix %>% colnames()) {
   
   if (col_id %in% annotation_df$specimenID) {
@@ -106,17 +109,14 @@ annotation_df %<>%
   arrange(
     match(specimenID, id_of_interest)
   )
+### Set rownames of annotations to be specimenID
+rownames(annotation_df) <- annotation_df$specimenID
 
-# Make sure there are no missing values
-missing <- biospecimen_metadata %>%
-  filter(
-    specimenID %in% id_of_interest,
-    !(specimenID %in% annotation_df$specimenID)
-  )
-if (nrow(missing) > 0) {
+# Make sure that counts and annotations have the same order
+is_identical <- rownames(annotation_df) == colnames(count_matrix)
+if (!all(is_identical)) {
   stop("There are unannotated samples in the counts", call. = FALSE)
 }
-
 
 # Construct the DESeq data set (dds),
 # design is irrelevant as it will be changed later
