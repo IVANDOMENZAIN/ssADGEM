@@ -54,30 +54,30 @@ dimnames(count_matrix)[[2]] %<>% sub("X", "", .)
 
 ### Weird duplication 
 if (all(count_matrix[, "150_120419"] == count_matrix[, "150_120419_0_merged"])) {
-  
+
   idx <- which(dimnames(count_matrix)[[2]] == "150_120419_0_merged")
   count_matrix <- count_matrix[, -idx]
 }
 
 ### Set as excluded in metadata or lacks clinical annotation
 for (col_id in count_matrix %>% colnames()) {
-  
+
   if (col_id %in% annotation_df$specimenID) {
-    
+
     idx <- which(
       annotation_df$specimenID == col_id &
       annotation_df$assay == "rnaSeq"
       )
-    
+
     is_excluded <- idx %>%
       annotation_df$exclude[.] %>%
-      any(na.rm = TRUE) 
-    
+      any(na.rm = TRUE)
+
     lacks_cogdx <- idx %>%
       annotation_df$cogdx[.] %>%
-      is.na 
-    
-    if (is_excluded | lacks_cogdx) {
+      is.na
+
+    if (is_excluded || lacks_cogdx) {
       col_idx <- which(
         dimnames(count_matrix)[[2]] == col_id
         )
