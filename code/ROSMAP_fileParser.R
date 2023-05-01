@@ -52,6 +52,13 @@ dimnames(count_matrix)[[2]] %<>% sub("X", "", .)
 
 ## count_matrix has some entries that should be removed
 
+### Rows for number of unmapped, etc.
+idx <- count_matrix %>%
+  dimnames %>%
+  .[[1]] %>%
+  grep("^N_*", .)
+count_matrix <- count_matrix[, -idx]
+
 ### Weird duplication 
 if (all(count_matrix[, "150_120419"] == count_matrix[, "150_120419_0_merged"])) {
 
