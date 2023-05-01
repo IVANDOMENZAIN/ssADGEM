@@ -57,7 +57,7 @@ idx <- count_matrix %>%
   dimnames %>%
   .[[1]] %>%
   grep("^N_*", .)
-count_matrix <- count_matrix[, -idx]
+count_matrix <- count_matrix[-idx,]
 
 ### Weird duplication 
 if (all(count_matrix[, "150_120419"] == count_matrix[, "150_120419_0_merged"])) {
