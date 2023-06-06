@@ -50,13 +50,27 @@ annotation_df %<>% merge(clinical_metadata,
 ## Format in file is 'X<specimenID>', we substitute 'X' to ''
 dimnames(count_matrix)[[2]] %<>% sub("X", "", .)
 
-## count_matrix has some that should be removed
+## count_matrix has some entries that should be removed
+
+### Rows for number of unmapped, etc.
+idx <- count_matrix %>%
+  dimnames %>%
+  .[[1]] %>%
+  grep("^N_*", .)
+count_matrix <- count_matrix[-idx,]
+
+### Weird duplication 
 if (all(count_matrix[, "150_120419"] == count_matrix[, "150_120419_0_merged"])) {
 
   idx <- which(dimnames(count_matrix)[[2]] == "150_120419_0_merged")
   count_matrix <- count_matrix[, -idx]
 }
 
+### Nonsensical batch annotation (TODO: check this)
+idx <- which(dimnames(count_matrix)[[2]] == "492_120515")
+count_matrix <- count_matrix[, -idx]
+
+### Set as excluded in metadata or lacks clinical annotation, RIN
 for (col_id in count_matrix %>% colnames()) {
 
   if (col_id %in% annotation_df$specimenID) {
@@ -73,8 +87,12 @@ for (col_id in count_matrix %>% colnames()) {
     lacks_cogdx <- idx %>%
       annotation_df$cogdx[.] %>%
       is.na
+    
+    lacks_RIN <- idx %>%
+      annotation_df$RIN[.] %>%
+      is.na
 
-    if (is_excluded || lacks_cogdx) {
+    if (is_excluded || lacks_cogdx || lacks_RIN) {
       col_idx <- which(
         dimnames(count_matrix)[[2]] == col_id
         )
@@ -98,7 +116,7 @@ annotation_df %<>%
 ### By columns
 annotation_df %<>%
   select_if(
-    ~ n_distinct(.) > 1 # Has different values
+    ~ n_distinct(.) > 1 && !is.na(.) # Has unique non-NA values
   )
 
 ### Sort to match order in counts
@@ -106,17 +124,40 @@ annotation_df %<>%
   arrange(
     match(specimenID, id_of_interest)
   )
+### Set rownames of annotations to be specimenID
+rownames(annotation_df) <- annotation_df$specimenID
 
-# Make sure there are no missing values
-missing <- biospecimen_metadata %>%
-  filter(
-    specimenID %in% id_of_interest,
-    !(specimenID %in% annotation_df$specimenID)
-  )
-if (nrow(missing) > 0) {
+# Make sure that counts and annotations have the same order
+is_identical <- rownames(annotation_df) == colnames(count_matrix)
+if (!all(is_identical)) {
   stop("There are unannotated samples in the counts", call. = FALSE)
 }
 
+# Change numeric codes to factors
+annotation_df$libraryBatch %<>% as.factor
+## Remove sequencingBatch since it's the same as libraryBatch
+idx_col_seqBatch <- which(annotation_df %>% colnames == "sequencingBatch")
+annotation_df <- annotation_df[-idx_col_seqBatch]
+annotation_df$msex %<>% as.factor
+annotation_df$race %<>% as.factor
+annotation_df$spanish %<>% as.factor
+annotation_df$apoe_genotype %<>% as.factor
+annotation_df$braaksc %<>% as.factor
+annotation_df$ceradsc %<>% as.factor
+annotation_df$cogdx %<>% as.factor
+annotation_df$dcfdx_lv %<>% as.factor
+
+# Add a binary ceradsc
+annotation_df$ceradsc_binary <- annotation_df$ceradsc
+levels(annotation_df$ceradsc_binary) <- c("AD", "AD", "No_AD", "No_AD")
+
+# Change age from string to numeric
+annotation_df$age_at_visit_max %<>%
+  sub("\\+", "", .) %>% # 90+ is treated as 90
+  as.numeric
+annotation_df$age_death %<>%
+  sub("\\+", "", .) %>% # 90+ is treated as 90
+  as.numeric
 
 # Construct the DESeq data set (dds),
 # design is irrelevant as it will be changed later
