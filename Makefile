@@ -3,11 +3,19 @@
 
 ## Filepaths
 include filepaths.mk #local to your machine, write your paths in here or change the below variables into paths
+raven_dir = $(RAVEN_PATH)
+gurobi_dir = $(GUROBI_PATH)
 human_dir = $(HUMAN_GEM_PATH)
 synapse_dir = $(SYNAPSE_DATA_PATH)
 
 ## Variables
 matlab = matlab -nodisplay -batch
+
+raven_install_path = installation/checkInstallation.m
+raven_dep = $(raven_dir)
+
+gurobi_matlab_install_path = linux64/matlab/gurobi_setup.m
+gurobi_dep = $(gurobi_dir)
 
 human_files = model/model.mat model/reactions.tsv code/io code/tINIT \
 	data/metabolicTasks/metabolicTasks_Essential.txt
