@@ -10,8 +10,9 @@ if (!interactive()) {
   target_path <- args[2]
 } else {
   # For using interactively, change paths to appropriate
-  directory_path <- "/castor/project/home/gasto/sens2023522/synapseFiles"
-  target_path <- "/castor/project/home/gasto/ssADGEM/data/ROSMAP_dds.rds"
+  project_path <- "/castor/project/home/gasto/ssADGEM/"
+  directory_path <- paste(project_path, "external/synapse_dir/", sep = "")
+  target_path <- paste(project_path, "data/ROSMAP_dds.rds", sep = "")
 }
 
 
@@ -33,24 +34,51 @@ rnaseq_metadata <- read_csv("ROSMAP_assay_rnaSeq_metadata.csv")
 clinical_metadata <- read_csv("ROSMAP_clinical.csv")
 biospecimen_metadata <- read_csv("ROSMAP_biospecimen_metadata.csv")
 
+tech_metadata <- "AMP_AD_ROSMAP_Broad-Rush_RNA_Seq_RIN.txt" %>%
+  read.table(sep='\t',header=T)
+
+picard_metadata <- "ROSMAP_all_metrics_matrix.txt" %>%
+  read_delim(delim = "\t")
+picard_metadata$specimenID <- picard_metadata$sample
+
+## Unsure here
+picard_important_cols <- c("specimenID",
+                           "AlignmentSummaryMetrics__PCT_PF_READS_ALIGNED",
+                           "RnaSeqMetrics__PCT_CODING_BASES",
+                           "RnaSeqMetrics__PCT_INTERGENIC_BASES",
+                           "RnaSeqMetrics__PCT_INTRONIC_BASES", 
+                           "RnaSeqMetrics__PCT_RIBOSOMAL_BASES")
+picard_metadata %<>% .[, picard_important_cols]
+
 working_directory %>% setwd
+
+# Change count data from double to integer (smaller object)
+mode(count_matrix) <- "integer"
 
 # Merge annotation data into one dataframe by specimenID and individualID
 annotation_df <- merge(rnaseq_metadata, biospecimen_metadata,
                        by = "specimenID",
-                       all = TRUE
-                     )
+                       all = TRUE)
+
 annotation_df %<>% merge(clinical_metadata,
                          by = "individualID",
-                         all = TRUE
-                       )
+                         all = TRUE)
 
-# Modify to align row and column names
+annotation_df %<>% merge(tech_metadata,
+                         by = "projid",
+                         all = TRUE)
+
+annotation_df %<>% merge(picard_metadata,
+                         by = "specimenID",
+                         all = TRUE)
+
+# Modify count and annotations to remove bad/unnecessary data,
+# also align row and column names
 
 ## Format in file is 'X<specimenID>', we substitute 'X' to ''
 dimnames(count_matrix)[[2]] %<>% sub("X", "", .)
 
-## count_matrix has some entries that should be removed
+## annotation/count_matrix has some entries that should be removed
 
 ### Rows for number of unmapped, etc.
 idx <- count_matrix %>%
@@ -59,73 +87,53 @@ idx <- count_matrix %>%
   grep("^N_*", .)
 count_matrix <- count_matrix[-idx,]
 
-### Weird duplication 
+### Duplicate entry
 if (all(count_matrix[, "150_120419"] == count_matrix[, "150_120419_0_merged"])) {
 
   idx <- which(dimnames(count_matrix)[[2]] == "150_120419_0_merged")
   count_matrix <- count_matrix[, -idx]
 }
 
-### Nonsensical batch annotation (TODO: check this)
-idx <- which(dimnames(count_matrix)[[2]] == "492_120515")
-count_matrix <- count_matrix[, -idx]
-
-### Set as excluded in metadata or lacks clinical annotation, RIN
-for (col_id in count_matrix %>% colnames()) {
-
-  if (col_id %in% annotation_df$specimenID) {
-
-    idx <- which(
-      annotation_df$specimenID == col_id &
-      annotation_df$assay == "rnaSeq"
-      )
-
-    is_excluded <- idx %>%
-      annotation_df$exclude[.] %>%
-      any(na.rm = TRUE)
-
-    lacks_cogdx <- idx %>%
-      annotation_df$cogdx[.] %>%
-      is.na
-    
-    lacks_RIN <- idx %>%
-      annotation_df$RIN[.] %>%
-      is.na
-
-    if (is_excluded || lacks_cogdx || lacks_RIN) {
-      col_idx <- which(
-        dimnames(count_matrix)[[2]] == col_id
-        )
-      count_matrix <- count_matrix[, -col_idx]
-    }
-  }
-}
-
-## We can pick out rows of interest and discard the rest,
-## additionally we sort them to the same order
-id_of_interest <- count_matrix %>% colnames()
-
-### By rows
+### Some samples are lacking critical metadata
 annotation_df %<>%
-  filter(
-    specimenID %in% id_of_interest, # Corresponds to counts
-    assay == "rnaSeq", # Is RNA-Seq
-    exclude %>% is.na() # Not marked as excluded
+  filter(specimenID %in% colnames(count_matrix)) %>%
+  filter(assay == "rnaSeq") %>%
+  filter(!is.na(cogdx)) %>%
+  filter(!is.na(braaksc)) %>%
+  filter(!is.na(ceradsc)) %>%
+  # RINcontinous is missing for ~ 100 entries, but RIN is only missing one 
+  mutate(RINcontinuous = coalesce(RINcontinuous, RIN)) %>%
+  filter(!is.na(RINcontinuous)) %>%
+  filter(!is.na(pmi)) %>%
+  filter(!is.na(age_death)) %>%
+  filter((exclude == FALSE) | is.na(exclude))
+
+## Some of the annotation columns have no variation
+annotation_df %<>%
+  select_if(function(col)
+    n_distinct(col) > 1 &
+    count(!is.na(col)) > .9 * length(col) #more than 90% are non-na
   )
 
-### By columns
-annotation_df %<>%
-  select_if(
-    ~ n_distinct(.) > 1 && !is.na(.) # Has unique non-NA values
-  )
+## Some rows/columns are now redundant
+annotation_df %<>% distinct
+annotation_df <- annotation_df[, !duplicated(annotation_df %>% t)]
 
-### Sort to match order in counts
+## Sample 492_120515 belongs to 2 batches,
+## assume the latter one is correct
+annotation_df %<>% filter(ID != "492_120515_0" | is.na(ID))
+
+## Remove the counts lacking metadata
+count_matrix <- count_matrix[, annotation_df$specimenID]
+
+## Set rownames of annotations to be specimenID
+rownames(annotation_df) <- annotation_df$specimenID
+
+## Sort annotations to match order in counts
 annotation_df %<>%
   arrange(
-    match(specimenID, id_of_interest)
+    match(specimenID, colnames(count_matrix))
   )
-### Set rownames of annotations to be specimenID
-rownames(annotation_df) <- annotation_df$specimenID
 
 # Make sure that counts and annotations have the same order
 is_identical <- rownames(annotation_df) == colnames(count_matrix)
@@ -133,25 +141,61 @@ if (!all(is_identical)) {
   stop("There are unannotated samples in the counts", call. = FALSE)
 }
 
-# Change numeric codes to factors
+# Change numeric codes to factors, add explanatory
+# level names to some, rename columns, and remove unneeded columns
+
+## Use only rownames (specimenID) as keys
+annotation_df %<>%
+  mutate(
+    specimenID = NULL,
+    projid = NULL,
+    individualID = NULL,
+    ID = NULL,
+    Sampleid = NULL
+  )
+
+## Shorten picard data column names (PF_ALIGNED_BASES is a special case),
+## perl is required for regex lookahead
+colnames(annotation_df) %<>%
+  gsub('AlignmentSummaryMetrics__(?!PF_ALIGNED_BASES)', '', ., perl = TRUE) %>%
+  gsub('AlignmentSummaryMetrics__', 'Alignment_', .) %>%
+  gsub('RnaSeqMetrics__(?!PF_ALIGNED_BASES)', '', ., perl = TRUE) %>%
+  gsub('RnaSeqMetrics__', 'RnaSeq_', .)
+
+## Combine information from libraryBatch and Batch
 annotation_df$libraryBatch %<>% as.factor
-## Remove sequencingBatch since it's the same as libraryBatch
-idx_col_seqBatch <- which(annotation_df %>% colnames == "sequencingBatch")
-annotation_df <- annotation_df[-idx_col_seqBatch]
+annotation_df$Batch %<>%
+  as.factor %>%
+  coalesce(annotation_df$libraryBatch) %>%
+  droplevels
+
+annotation_df %<>%
+  mutate(libraryBatch = NULL)
+
 annotation_df$msex %<>% as.factor
+levels(annotation_df$msex) <- c("Female", "Male")
+
 annotation_df$race %<>% as.factor
 annotation_df$spanish %<>% as.factor
 annotation_df$apoe_genotype %<>% as.factor
 annotation_df$braaksc %<>% as.factor
-annotation_df$ceradsc %<>% as.factor
-annotation_df$cogdx %<>% as.factor
-annotation_df$dcfdx_lv %<>% as.factor
 
-# Add a binary ceradsc
+annotation_df$ceradsc %<>% as.factor
+levels(annotation_df$ceradsc) <- c("Definite", "Probable", "Possible", "No_AD")
+
+annotation_df$cogdx %<>% as.factor
+levels(annotation_df$cogdx) <- c("NCI", "MCI", "MCI+", "AD", "AD+", "Other")
+
+annotation_df$dcfdx_lv %<>% as.factor
+levels(annotation_df$dcfdx_lv) <- c("NCI", "MCI", "MCI+", "AD", "AD+", "Other")
+
+## Add a binary ceradsc
 annotation_df$ceradsc_binary <- annotation_df$ceradsc
 levels(annotation_df$ceradsc_binary) <- c("AD", "AD", "No_AD", "No_AD")
 
-# Change age from string to numeric
+## Add a squared RIN value
+
+## Change age from string to numeric
 annotation_df$age_at_visit_max %<>%
   sub("\\+", "", .) %>% # 90+ is treated as 90
   as.numeric
