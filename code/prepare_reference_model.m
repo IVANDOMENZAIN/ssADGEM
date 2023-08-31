@@ -1,10 +1,11 @@
-function prepareReferenceModel(human_dir)
+function prepare_reference_model(human_dir)
 
 %% Setup
 
 % Find the ssADGEM project dir location
 script_path = mfilename('fullpath');
 project_path = extractBefore(script_path, "code");
+target_path = strjoin([project_path, "data/Human-GEM_reference_model.mat"], "");
 
 % If no directory is supplied, assume symbolic link in 'external' folder
 if nargin < 1
@@ -32,8 +33,10 @@ if ~permissions.UserWrite
 
 end
 
-% Start a parallel pool
-parpool('Processes');
+if isempty(gcp('nocreate'))
+    % Start a parallel pool
+    parpool('Processes');
+end
 
 %% Model prep
 
@@ -60,7 +63,7 @@ referenceModel = prepHumanModelForftINIT(human, should_convertToSymbol, ...
     task_path, reactions_path);
 
 % Save the reference model
-save('../data/humanReferenceModel.mat', 'referenceModel')
+save(target_path, 'referenceModel')
 
 % Remove the added paths again
 rmpath(tINIT_path);
