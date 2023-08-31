@@ -109,7 +109,26 @@ if (interactive()){
   
   # Show that batch is a significant co-variate from PCA plot
   
+  cqnAndDESeq <- function(deseqds, gene_param, dsgn) {
+    # Set design
+    design(deseqds) <- dsgn
+    
+    # Estimate size factors with Conditional Quantile
+    stopifnot(rownames(deseqds) == gene_param$Gene.ID)
+    cqn_res <- deseqds %>% assay %>%
+      cqn(x = gene_param$percentage_gc_content,
+          lengths = gene_param$gene.length)
+    normalizationFactors(deseqds) <- cqn_res$glm.offset %>% exp
+    
+    # Perform rest of DeSeq pipeline
+    deseqds %<>% estimateDispersions(parallel = TRUE)
+    deseqds %<>% nbinomWaldTest(parallel = TRUE)
+    
+    return(deseqds)
+  }
+  
   ## Set design as AD or not and perform estimations
+  dds.filtered %<>% cqnAndDESeq(gene_data.filtered, ~ cogdx)
   design(dds.filtered) <- ~ cogdx
   dds.filtered %<>% DESeq(parallel = TRUE)
   
