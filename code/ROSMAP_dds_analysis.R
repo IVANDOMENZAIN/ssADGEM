@@ -259,12 +259,12 @@ if (interactive()){
   
   ## Export
   target_path_counts <- target_folder %>%
-    paste("ROSMAP_normalized_log2counts.gz", sep = "")
-  mat %>% write.table(file = gzfile(target_path_counts))
-  
-  target_path_counts <- target_folder %>% paste("ROSMAP_metadata.gz", sep = "")
+    paste("ROSMAP_normalized_log2counts.txt", sep = "")
+  mat %>% write.table(file = target_path_counts, col.names = NA)
+
+  target_path_meta <- target_folder %>% paste("ROSMAP_metadata.txt", sep = "")
   dds.supported %>% colData %>%
-    write.table(file = gzfile(target_path_counts))
+    write.table(file = target_path_meta, col.names = NA)
   
 }
 # Caret for copy+paste: ^

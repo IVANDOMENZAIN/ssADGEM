@@ -13,7 +13,13 @@ end
 try
     % Change dir to gurobi and run gurobi_setup.m
     current_directory = cd(gurobi_dir);
-    cd linux64/matlab/
+    if isunix
+        cd linux64/matlab/
+    elseif ispc
+        cd win64/matlab/
+    else
+        disp('Platform not supported')
+    end
     gurobi_setup
     
     % Change dir to RAVEN and run checkInstall
