@@ -12,7 +12,8 @@ The metabolism of organisms and cells can be mathematically represented by genom
 In the thesis I aim to build single-sample GEMs based on the genomes deceased people with and without AD. The models will subsequently be used to investigate associations between it and the clinical phenotype of the individual. I will be looking at differences between affected and non-impaired individuals as well as the heterogeneity within the Alzeheimer’s samples and examine if there is further clustering within it. Finally I will investigate if we can predict future outcomes of patients by their prior condition.
 
 ## Dependencies
-*todo*
+Attached to the repository is version info of the packages in R and Matlab. The project also relies on the SysBio-projects
+ [RAVEN](https://github.com/SysBioChalmers/RAVEN) and [Human-GEM](https://github.com/SysBioChalmers/Human-GEM).
 
 ## Example Usage
 *todo*
