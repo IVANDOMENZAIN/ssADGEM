@@ -1,8 +1,11 @@
 # Temporary files
-/nobackup
+/nobackup/*
 /code/*.asv
 # Sensitive/Personal Data or External Resources
 /data/ROSMAP*
 /data/HASH*
 /data/Human-GEM*
 /external/*
+
+# Negate for plots
+!/nobackup/plots
