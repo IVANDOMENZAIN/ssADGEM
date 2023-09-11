@@ -193,8 +193,6 @@ levels(annotation_df$dcfdx_lv) <- c("NCI", "MCI", "MCI+", "AD", "AD+", "Other")
 annotation_df$ceradsc_binary <- annotation_df$ceradsc
 levels(annotation_df$ceradsc_binary) <- c("AD", "AD", "No_AD", "No_AD")
 
-## Add a squared RIN value
-
 ## Change age from string to numeric
 annotation_df$age_at_visit_max %<>%
   sub("\\+", "", .) %>% # 90+ is treated as 90
