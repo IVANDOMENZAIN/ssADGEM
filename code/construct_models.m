@@ -71,6 +71,7 @@ if isempty(gcp('nocreate'))
 end
 
 % Construct each model
+skipped_samples_idxs = [];
 for i = 1:no_samples
 
     if isfile(strjoin([models_save_dir "ROSMAP_" transcript_struct.tissues{i} ".mat"], ""))
@@ -82,12 +83,17 @@ for i = 1:no_samples
         model = ftINIT(prep_model, transcript_struct.tissues{i}, celltype, ...
             hpaData, transcript_struct, metabolomicsData, ...
             getINITSteps(metsToIgnore,'1+0'), removeGenes, useScoresForTasks);
-    
+
         save(strjoin([models_save_dir "ROSMAP_" transcript_struct.tissues{i}], ""), "model")
-    
+
     catch
+        disp('Skipped model')
+        skipped_samples_idxs = [skipped_samples_idxs, i];
         continue
     end
 end
+
+% Show which samples were skipped
+disp(skipped_samples_idxs)
 
 end
