@@ -79,7 +79,7 @@ dds$cogdx %<>% droplevels
 minCohortSize <- dds$cogdx %>%
   table %>%
   min
-genes_to_keep <- rowSums(assay(dds) >= 10) >= minCohortSize
+genes_to_keep <- rowSums(assay(dds) >= 100) >= minCohortSize
 dds.filtered <- dds[genes_to_keep, ]
 
 # Also filter out genes without gene data
@@ -95,6 +95,7 @@ if (interactive()){
   ###################
   
   # Helper function
+  plot.new()
   savePlot <- function(new_plt, save_path = "plt%03d.jpeg") {
     jpeg(filename = save_path,
          pointsize = 12,
@@ -102,16 +103,16 @@ if (interactive()){
          width = 900,
          quality = 95)
     plot(new_plt)
-    dev.off()
+    invisible(dev.off())
   }
   
-  # Check the distributions (logCPM) per batch
+  # Check the distributions (logCPM)
   checkDistribution <- function(data, plt_title = "Gene distributions per sample"){
     
     if (is(data, "DESeqDataSet")){
       cpm <- data %>%
         fpm(robust = FALSE)
-      logCPM <- log2(0.01 + cpm) # avoid -Inf
+      logCPM <- log2(0.01+cpm) # avoid -Inf
       x_title <- bquote(log[2](0.01+CPM))
     } else {
       logCPM <- data
@@ -127,25 +128,20 @@ if (interactive()){
       theme(legend.position = "none")
     return(plt)
   }
+  plt_path <- paste(plt_folder, "gene_dist_high_filter.jpeg", sep = "")
+  dds.filtered %>%
+    checkDistribution(plt_title = "Gene distribution of all samples (high pre-filtration)") %>%
+    savePlot(save_path = plt_path)
   
-  for (batch in levels(dds.filtered$Batch)) {
-    batch %<>% as.numeric
-    plt_path <- paste(plt_folder, "gene_dist_batch", batch, ".jpeg", sep = "")
-    
-    plt_title = paste("Gene distribution in batch", batch, "with",
-                      (dds.filtered$Batch == batch) %>% sum, "samples")
-    
-    dds.filtered[, dds.filtered$Batch == batch] %>%
-      checkDistribution(plt_title = plt_title) %>%
-      savePlot(save_path = plt_path)
-  }
-  
-  # Gene distributions are peak shifted -> requires cqn?
+  # Distributions do not have good overlap, use cqn to normalise
   cqn_res <- dds.filtered %>% assay %>%
     cqn(x = gene_data.filtered$percentage_gc_content,
         lengths = gene_data.filtered$gene.length)
-  (cqn_res$y + cqn_res$offset)[, dds.filtered$Batch != 7] %>%
-    checkDistribution
+  
+  plt_path <- paste(plt_folder, "gene_dist_cqn_high_filter.jpeg", sep = "")
+  (cqn_res$y + cqn_res$offset) %>%
+    checkDistribution(plt_title = "Gene distribution after cqn (high pre-filtration)") %>%
+    savePlot(save_path = plt_path)
   
   cqnNormalizationFactors <- function(deseqds, gene_param) {
     # Estimate size factors with Conditional Quantile
@@ -292,10 +288,10 @@ if (interactive()){
   
   ## Export
   target_path_counts <- target_folder %>%
-    paste("ROSMAP_normalized_log2counts.gz", sep = "")
+    paste("ROSMAP_normalized_log2counts.txt.gz", sep = "")
   mat %>% write.table(file = gzfile(target_path_counts), col.names = NA)
   
-  target_path_counts <- target_folder %>% paste("ROSMAP_metadata.gz", sep = "")
+  target_path_counts <- target_folder %>% paste("ROSMAP_metadata.txt.gz", sep = "")
   dds.supported %>% colData %>%
     write.table(file = gzfile(target_path_counts), col.names = NA)
   
