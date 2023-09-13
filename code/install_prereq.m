@@ -14,7 +14,13 @@ try
     % Change dir to gurobi and run gurobi_setup.m
     current_directory = cd(gurobi_dir);
     if isunix
-        cd linux64/matlab/
+        if isfolder('linux64')
+            cd linux64/matlab/
+        elseif isfolder('matlab')
+            cd matlab/
+        else
+            disp('Platform not supported')
+        end
     elseif ispc
         cd win64/matlab/
     else

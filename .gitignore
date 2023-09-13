@@ -1,6 +1,8 @@
 # Temporary files
 /nobackup/*
 /code/*.asv
+*.log
+
 # Sensitive/Personal Data or External Resources
 /data/ROSMAP*
 /data/HASH*
