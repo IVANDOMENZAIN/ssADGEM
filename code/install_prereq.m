@@ -47,9 +47,13 @@ try
     end
 
 catch ME
-    % Set user back to working directory in case of error
-    cd(current_directory);
-    rethrow(ME)
+    try
+        % Set user back to working directory in case of error
+        cd(current_directory);
+        rethrow(ME)
+    catch ME
+        rethrow(ME)
+    end
 end
 
 end

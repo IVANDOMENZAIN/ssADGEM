@@ -6,8 +6,9 @@ if nargin < 1
 end
 model_files = dir(fullfile(GEMs_dir,'*.mat'));
 model_paths = arrayfun(@(x) strjoin([GEMs_dir, x.name], ""), model_files);
-models = [];
-for i = 1:(length(model_paths)/5)
-    models = [models load(model_paths(i)).model];
+models = cell(length(model_paths), 1);
+for i = 1:length(model_paths)
+    models{i} = load(model_paths(i)).model;
+    models{i}.id = model_files(i).name;
 end
 end
