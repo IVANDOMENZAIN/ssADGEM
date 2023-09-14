@@ -6,8 +6,8 @@ project_path = extractBefore(script_path, "code");
 
 % If no directory is supplied, assume symbolic link in 'external' folder
 if nargin < 1
-    gurobi_dir = strjoin([project_path, "external/gurobi_dir"], "");
-    raven_dir = strjoin([project_path, "external/raven_dir"], "");
+    gurobi_dir = strjoin([project_path, "external/gurobi_dir/"], "");
+    raven_dir = strjoin([project_path, "external/raven_dir/"], "");
 end
 
 try
@@ -16,17 +16,17 @@ try
     if isunix
         if isfolder('linux64')
             cd linux64/matlab/
+            gurobi_setup
         elseif isfolder('matlab')
-            cd matlab/
-        else
-            disp('Platform not supported')
+            % I hope this works
+            addpath(strjoin([gurobi_dir, "matlab/"], ""))
         end
     elseif ispc
         cd win64/matlab/
+        gurobi_setup
     else
         disp('Platform not supported')
     end
-    gurobi_setup
     
     % Change dir to RAVEN and run checkInstall
     cd(raven_dir);
