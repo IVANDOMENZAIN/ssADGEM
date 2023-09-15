@@ -79,7 +79,7 @@ dds$cogdx %<>% droplevels
 minCohortSize <- dds$cogdx %>%
   table %>%
   min
-genes_to_keep <- rowSums(assay(dds) >= 100) >= minCohortSize
+genes_to_keep <- rowSums(assay(dds) >= 10) >= minCohortSize
 dds.filtered <- dds[genes_to_keep, ]
 
 # Also filter out genes without gene data
@@ -106,17 +106,18 @@ if (interactive()){
     invisible(dev.off())
   }
   
-  # Check the distributions (logCPM)
+  #######################
+  # CHECK DISTRIBUTIONS #
+  #######################
+  
   checkDistribution <- function(data, plt_title = "Gene distributions per sample"){
     
     if (is(data, "DESeqDataSet")){
       cpm <- data %>%
         fpm(robust = FALSE)
-      logCPM <- log2(0.01+cpm) # avoid -Inf
-      x_title <- bquote(log[2](0.01+CPM))
+      logCPM <- log2(1+cpm)
     } else {
       logCPM <- data
-      x_title <- bquote(log[2](CPM))
     }
     plt <- logCPM %>%
       as.data.frame %>%
@@ -124,13 +125,13 @@ if (interactive()){
       ggplot(aes(x = values, color = ind)) +
       geom_density(aes(group = ind), linetype = "dashed") +
       ggtitle(plt_title) +
-      xlab(x_title) +
+      xlab(bquote(log[2](1+CPM))) +
       theme(legend.position = "none")
     return(plt)
   }
-  plt_path <- paste(plt_folder, "gene_dist_high_filter.jpeg", sep = "")
+  plt_path <- paste(plt_folder, "gene_dist.jpeg", sep = "")
   dds.filtered %>%
-    checkDistribution(plt_title = "Gene distribution of all samples (high pre-filtration)") %>%
+    checkDistribution(plt_title = "Gene distribution of all samples") %>%
     savePlot(save_path = plt_path)
   
   # Distributions do not have good overlap, use cqn to normalise
@@ -138,10 +139,15 @@ if (interactive()){
     cqn(x = gene_data.filtered$percentage_gc_content,
         lengths = gene_data.filtered$gene.length)
   
-  plt_path <- paste(plt_folder, "gene_dist_cqn_high_filter.jpeg", sep = "")
-  (cqn_res$y + cqn_res$offset) %>%
-    checkDistribution(plt_title = "Gene distribution after cqn (high pre-filtration)") %>%
+  cpm_adj <- (cqn_res$y + cqn_res$offset)
+  plt_path <- paste(plt_folder, "gene_dist_cqn.jpeg", sep = "")
+  log2(1 + 2^cpm_adj) %>%
+    checkDistribution(plt_title = "Gene distribution after cqn") %>%
     savePlot(save_path = plt_path)
+  
+  ###################
+  # ??? #
+  ###################
   
   cqnNormalizationFactors <- function(deseqds, gene_param) {
     # Estimate size factors with Conditional Quantile
