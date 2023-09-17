@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
-# TODO: Remove outliers not in batch 7
-# TODO: Rigorously do covariate significance testing
+# TODO: Remove outliers by SD
+# TODO: Do covariate significance testing in a rigorous manner
 
 
  ############
@@ -86,6 +86,12 @@ dds.filtered <- dds[genes_to_keep, ]
 gene_data.filtered <- gene_data %>% filter(Gene.ID %in% rownames(dds.filtered))
 dds.filtered <- dds[gene_data.filtered$Gene.ID, ]
 
+
+
+gr <- GRanges(seqnames = gene_data.filtered$Gene.ID %>% as.character,
+        ranges = IRanges(start = 1, width = gene_data.filtered$gene.length))
+rowRanges(dds.filtered) <- gr %>% split
+
 # Analysis (only if interactive)
 if (interactive()){
 
@@ -110,7 +116,10 @@ if (interactive()){
   # CHECK DISTRIBUTIONS #
   #######################
   
-  checkDistribution <- function(data, plt_title = "Gene distributions per sample"){
+  checkDistribution <- function(data,
+                                plt_title = "Gene distributions per sample",
+                                xlabel = bquote(log[2](1+CPM))
+                                ) {
     
     if (is(data, "DESeqDataSet")){
       cpm <- data %>%
@@ -125,13 +134,21 @@ if (interactive()){
       ggplot(aes(x = values, color = ind)) +
       geom_density(aes(group = ind), linetype = "dashed") +
       ggtitle(plt_title) +
-      xlab(bquote(log[2](1+CPM))) +
+      xlab(xlabel) +
       theme(legend.position = "none")
     return(plt)
   }
   plt_path <- paste(plt_folder, "gene_dist.jpeg", sep = "")
   dds.filtered %>%
     checkDistribution(plt_title = "Gene distribution of all samples") %>%
+    savePlot(save_path = plt_path)
+  
+  fpkm.filtered <- dds.filtered %>%
+    fpkm(robust = TRUE)
+  plt_path <- paste(plt_folder, "gene_dist_fpkm.jpeg", sep = "")
+  log2(1+fpkm.filtered) %>%
+    checkDistribution(plt_title = "Gene distribution of all samples after fpkm with transcript length normalisation",
+                      xlabel = bquote(log[2](1+FPKM))) %>%
     savePlot(save_path = plt_path)
   
   # Distributions do not have good overlap, use cqn to normalise
