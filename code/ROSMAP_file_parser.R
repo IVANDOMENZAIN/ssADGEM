@@ -80,13 +80,6 @@ dimnames(count_matrix)[[2]] %<>% sub("X", "", .)
 
 ## annotation/count_matrix has some entries that should be removed
 
-### Rows for number of unmapped, etc.
-idx <- count_matrix %>%
-  dimnames %>%
-  .[[1]] %>%
-  grep("^N_*", .)
-count_matrix <- count_matrix[-idx,]
-
 ### Duplicate entry
 if (all(count_matrix[, "150_120419"] == count_matrix[, "150_120419_0_merged"])) {
 
@@ -126,8 +119,18 @@ annotation_df %<>% filter(ID != "492_120515_0" | is.na(ID))
 ## Remove the counts lacking metadata
 count_matrix <- count_matrix[, annotation_df$specimenID]
 
-## Set rownames of annotations to be specimenID
+### Change rows for number of unmapped, etc. into metadata
+idx <- count_matrix %>%
+  dimnames %>%
+  .[[1]] %>%
+  grep("^N_*", .)
 rownames(annotation_df) <- annotation_df$specimenID
+annotation_df %<>%
+  merge(count_matrix[idx,] %>% t %>% as.data.frame,
+                                by = 'row.names') %>%
+  mutate(Row.names = NULL)
+rownames(annotation_df) <- annotation_df$specimenID # merge removes the rownames
+count_matrix <- count_matrix[-idx,]
 
 ## Sort annotations to match order in counts
 annotation_df %<>%
@@ -172,6 +175,7 @@ annotation_df$Batch %<>%
 annotation_df %<>%
   mutate(libraryBatch = NULL)
 
+annotation_df$Study %<>% as.factor
 annotation_df$msex %<>% as.factor
 levels(annotation_df$msex) <- c("Female", "Male")
 

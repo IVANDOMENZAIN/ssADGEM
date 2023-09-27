@@ -38,7 +38,14 @@ if (interactive()){
   library("ggforce")
   library("pheatmap")
   library("broom") # PCA
+  library("latentcor") # Correlation Plot
 }
+
+
+ ##############
+ # LOAD FILES #
+ ##############
+
 
 # Load the dataset
 load(dds_path)
@@ -86,21 +93,21 @@ dds.filtered <- dds[genes_to_keep, ]
 gene_data.filtered <- gene_data %>% filter(Gene.ID %in% rownames(dds.filtered))
 dds.filtered <- dds[gene_data.filtered$Gene.ID, ]
 
-
-
+# Add rowRanges
+tmp <- dds.filtered %>% rownames
 gr <- GRanges(seqnames = gene_data.filtered$Gene.ID %>% as.character,
         ranges = IRanges(start = 1, width = gene_data.filtered$gene.length))
 rowRanges(dds.filtered) <- gr %>% split
+rownames(dds.filtered) <- tmp
 
-# Analysis (only if interactive)
+
+ ###################
+ # DEA STARTS HERE #
+ ###################
+
 if (interactive()){
-
   
-  ###################
-  # DEA STARTS HERE #
-  ###################
-  
-  # Helper function
+  # Helper functions
   plot.new()
   savePlot <- function(new_plt, save_path = "plt%03d.jpeg") {
     jpeg(filename = save_path,
@@ -111,11 +118,36 @@ if (interactive()){
     plot(new_plt)
     invisible(dev.off())
   }
+  checkpoint <- function (obj_name) {
+    checkpoint_path <- paste(project_path, "nobackup/chpt",
+                             obj_name, ".Rdata", sep = "")
+    if (exists(obj_name)) {
+      save.image(file = checkpoint_path)
+    } else {
+      load(checkpoint_path)
+    }
+  }
   
+  ########################
+  # METADATA CORRELATION #
+  ########################
+  
+  # Calculate correlations
+  metadata_estimates <- dds.filtered %>% colData %>%
+    latentcor(types = get_types(.))
+  
+  # Plot pointwise correlation
+  plt_path <- paste(plt_folder, "metadata_assoc.jpeg", sep = "")
+  metadata_estimates$Rpointwise %>% abs %>%
+    pheatmap(main = "Metadata Association Heatmap",
+             color = viridis::viridis(8),
+             filename = plt_path)
+
   #######################
   # CHECK DISTRIBUTIONS #
   #######################
   
+  # Plotting function
   checkDistribution <- function(data,
                                 plt_title = "Gene distributions per sample",
                                 xlabel = bquote(log[2](1+CPM))
@@ -138,17 +170,30 @@ if (interactive()){
       theme(legend.position = "none")
     return(plt)
   }
+  
+  # CPM plot
   plt_path <- paste(plt_folder, "gene_dist.jpeg", sep = "")
   dds.filtered %>%
     checkDistribution(plt_title = "Gene distribution of all samples") %>%
-    savePlot(save_path = plt_path)
-  
+    savePlot(save_path = plt_path) # Plot shows bad overlap and poor normalisation
+
+  # FPKM plot
   fpkm.filtered <- dds.filtered %>%
-    fpkm(robust = TRUE)
+    fpkm(robust = FALSE)
   plt_path <- paste(plt_folder, "gene_dist_fpkm.jpeg", sep = "")
   log2(1+fpkm.filtered) %>%
-    checkDistribution(plt_title = "Gene distribution of all samples after fpkm with transcript length normalisation",
+    checkDistribution(plt_title = "Gene distribution of all samples after fpkm",
                       xlabel = bquote(log[2](1+FPKM))) %>%
+    savePlot(save_path = plt_path)
+  
+  # TPM plot
+  tpm.filtered <- fpkm.filtered %>%
+    sweep(2, colSums(.), '/')
+  tpm.filtered <- 1e6 * tpm.filtered
+  plt_path <- paste(plt_folder, "gene_dist_tpm.jpeg", sep = "")
+  log2(1+tpm.filtered) %>%
+    checkDistribution(plt_title = "Gene distribution of all samples after tpm",
+                      xlabel = bquote(log[2](1+TPM))) %>%
     savePlot(save_path = plt_path)
   
   # Distributions do not have good overlap, use cqn to normalise
@@ -162,34 +207,44 @@ if (interactive()){
     checkDistribution(plt_title = "Gene distribution after cqn") %>%
     savePlot(save_path = plt_path)
   
-  ###################
-  # ??? #
-  ###################
+  #############
+  # RUN DESEQ #
+  #############
   
-  cqnNormalizationFactors <- function(deseqds, gene_param) {
-    # Estimate size factors with Conditional Quantile
-    stopifnot(rownames(deseqds) == gene_param$Gene.ID)
-    cqn_res <- deseqds %>% assay %>%
+  cqnOnVSD <- function(vsd, gene_param) {
+    # Align genes
+    gene_param <- gene_param[gene_data.filtered$Gene.ID %in% rownames(vsd.filtered), ]
+    stopifnot(all(rownames(vsd) == gene_param$Gene.ID))
+    
+    # Run CQN
+    cqn_adj <- 2^assay(vsd) %>%
       cqn(x = gene_param$percentage_gc_content,
           lengths = gene_param$gene.length)
-    normalizationFactors(deseqds) <- cqn_res$glm.offset %>% exp
-    return(deseqds)
+    
+    # Return in log2(1+X)
+    log2_counts <- (cqn_adj$y + cqn_adj$offset)
+    log2(1 + 2^log2_counts) %>%
+      return()
   }
-  getVSDFromDeSeqDS <- function(deseqds, dsgn){
+  getVSDFromDeSeqDS <- function(deseqds, dsgn, min_padj = .1){
     design(deseqds) <- dsgn
-    dsds %<>% cqnNormalizationFactors(gene_data.filtered)
-    dsds %<>% DESeq(parallel = TRUE)
-    res <- dsds %>% results
-    vsd <- dsds[res$padj < .1, ] %>%
+    deseqds %<>% DESeq(parallel = TRUE)
+    res <- deseqds %>% results
+    vsd <- deseqds[res$padj < min_padj, ] %>%
       vst(blind = FALSE)
     return(vsd)
   }
   
   ## Set design as AD or not and perform estimations
-  dds.filtered %<>% .[gene_data.filtered$Gene.ID, ]
   vsd.filtered <- dds.filtered %>%
     getVSDFromDeSeqDS(~ cogdx)
   
+  checkpoint("vsd.filtered")
+  
+  plt_path <- paste(plt_folder, "test.jpeg", sep = "")
+  vsd.filtered %>% assay %>%
+    checkDistribution() %>%
+    savePlot(save_path = plt_path)
   
   ######################################
   # SHOWING THAT BATCH 7 IS AN OUTLIER #
@@ -281,42 +336,33 @@ if (interactive()){
   vsd.covar %>% pcaFromVSD(var = c("RIN", "msex"))
   vsd.covar %>% heatmapFromVSD(var = c("RIN", "Batch"))
   
-} else { # Not interactive
+} else {
+  #############################################
+  # NOT INTERACTIVE, EXPORT NORMALISED COUNTS #
+  #############################################
   
-  # Normalisation
   
-  ## Subset to only supported
-  dds.supported <- dds[gene_data$Gene.ID,
-                       which(dds$Batch != 7 & dds$Batch != 8)]
-  dds.supported$Batch %<>% droplevels
+  # Run DeSeq2
+  design(dds.filtered) <- ~ cogdx
+  dds.filtered %<>% DESeq(parallel = TRUE)
   
-  (rownames(dds.supported) == gene_data$Gene.ID) %>% stopifnot
-  
-  ## Run DeSeq2
-  design(dds.supported) <- ~ cogdx
-  dds.supported %<>% DESeq(parallel = TRUE)
-  
-  ## Normalise by previous size factors
-  vsd.supported <- dds.supported %>%
+  # Normalise by previous size factors
+  vsd.filtered <- dds.filtered %>%
     vst(blind = FALSE)
-
-  ## Correct for batch and RIN
-  mat <- vsd.supported %>% assay
-  mm <- model.matrix(~ cogdx,
-                     vsd.supported %>% colData)
-  mat <- removeBatchEffect(mat,
-                           batch = vsd.supported$Batch,
-                           covariates = vsd.supported$RIN,
-                           design = mm)
   
-  ## Export
+  # Export
   target_path_counts <- target_folder %>%
     paste("ROSMAP_normalized_log2counts.txt.gz", sep = "")
-  mat %>% write.table(file = gzfile(target_path_counts), col.names = NA)
+  vsd.filtered %>%
+    assay %>%
+    write.table(file = gzfile(target_path_counts),
+                col.names = NA)
   
-  target_path_counts <- target_folder %>% paste("ROSMAP_metadata.txt.gz", sep = "")
+  target_path_meta <- target_folder %>%
+    paste("ROSMAP_metadata.txt.gz", sep = "")
   dds.supported %>% colData %>%
-    write.table(file = gzfile(target_path_counts), col.names = NA)
+    write.table(file = gzfile(target_path_meta),
+                col.names = NA)
   
 }
 # Caret for copy+paste on thinlinc: ^
