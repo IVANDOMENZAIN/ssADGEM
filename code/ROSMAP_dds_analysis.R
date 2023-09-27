@@ -119,12 +119,13 @@ if (interactive()){
     invisible(dev.off())
   }
   checkpoint <- function (obj_name) {
-    checkpoint_path <- paste(project_path, "nobackup/chpt",
+    project_path <- "/castor/project/home/gasto/ssADGEM/"
+    checkpoint_path <- paste(project_path, "nobackup/chpt_",
                              obj_name, ".Rdata", sep = "")
     if (exists(obj_name)) {
       save.image(file = checkpoint_path)
     } else {
-      load(checkpoint_path)
+      load(file = checkpoint_path, envir = globalenv())
     }
   }
   
@@ -210,22 +211,7 @@ if (interactive()){
   #############
   # RUN DESEQ #
   #############
-  
-  cqnOnVSD <- function(vsd, gene_param) {
-    # Align genes
-    gene_param <- gene_param[gene_data.filtered$Gene.ID %in% rownames(vsd.filtered), ]
-    stopifnot(all(rownames(vsd) == gene_param$Gene.ID))
-    
-    # Run CQN
-    cqn_adj <- 2^assay(vsd) %>%
-      cqn(x = gene_param$percentage_gc_content,
-          lengths = gene_param$gene.length)
-    
-    # Return in log2(1+X)
-    log2_counts <- (cqn_adj$y + cqn_adj$offset)
-    log2(1 + 2^log2_counts) %>%
-      return()
-  }
+
   getVSDFromDeSeqDS <- function(deseqds, dsgn, min_padj = .1){
     design(deseqds) <- dsgn
     deseqds %<>% DESeq(parallel = TRUE)
@@ -236,14 +222,23 @@ if (interactive()){
   }
   
   ## Set design as AD or not and perform estimations
-  vsd.filtered <- dds.filtered %>%
-    getVSDFromDeSeqDS(~ cogdx)
+  vsd.filtered.significant_only <- dds.filtered %>%
+    getVSDFromDeSeqDS(~ cogdx, min_padj = 0.1)
+  vsd.filtered.all_genes <- dds.filtered %>%
+    getVSDFromDeSeqDS(~ cogdx, min_padj = 1)
   
-  checkpoint("vsd.filtered")
+  checkpoint("vsd.filtered.all_genes")
   
-  plt_path <- paste(plt_folder, "test.jpeg", sep = "")
-  vsd.filtered %>% assay %>%
-    checkDistribution() %>%
+  plt_path <- paste(plt_folder, "gene_dist_vst_sign.jpeg", sep = "")
+  vsd.filtered.significant_only %>% assay %>%
+    checkDistribution(plt_title = "Gene distribution of significant genes over all samples after VST",
+                      xlabel = bquote(log[2](VST))) %>%
+    savePlot(save_path = plt_path)
+  
+  plt_path <- paste(plt_folder, "gene_dist_vst_all.jpeg", sep = "")
+  vsd.filtered.all_genes %>% assay %>%
+    checkDistribution(plt_title = "Gene distribution of all samples after VST",
+                      xlabel = bquote(log[2](VST))) %>%
     savePlot(save_path = plt_path)
   
   ######################################
