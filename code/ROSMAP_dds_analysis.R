@@ -3,7 +3,6 @@
 # TODO: Remove outliers by SD
 # TODO: Do covariate significance testing in a rigorous manner
 
-
  ############
  # PREAMBLE #
  ############
@@ -137,6 +136,8 @@ if (interactive()){
   metadata_estimates <- dds.filtered %>% colData %>%
     latentcor(types = get_types(.))
   
+  checkpoint("metadata_estimates")
+  
   # Plot pointwise correlation
   plt_path <- paste(plt_folder, "metadata_assoc.jpeg", sep = "")
   metadata_estimates$Rpointwise %>% abs %>%
@@ -202,6 +203,8 @@ if (interactive()){
     cqn(x = gene_data.filtered$percentage_gc_content,
         lengths = gene_data.filtered$gene.length)
   
+  checkpoint("cqn_res")
+  
   cpm_adj <- (cqn_res$y + cqn_res$offset)
   plt_path <- paste(plt_folder, "gene_dist_cqn.jpeg", sep = "")
   log2(1 + 2^cpm_adj) %>%
@@ -212,23 +215,32 @@ if (interactive()){
   # RUN DESEQ #
   #############
 
-  getVSDFromDeSeqDS <- function(deseqds, dsgn, min_padj = .1){
+  runDESeqWithDesign <- function(deseqds, dsgn){
     design(deseqds) <- dsgn
-    deseqds %<>% DESeq(parallel = TRUE)
+    deseqds %>%
+      DESeq(parallel = TRUE) %>%
+      return()
+      
+  }
+  getVSDByPadj <- function(deseqds, min_padj = .1) {
     res <- deseqds %>% results
-    vsd <- deseqds[res$padj < min_padj, ] %>%
-      vst(blind = FALSE)
-    return(vsd)
+    deseqds[res$padj < min_padj, ] %>%
+      vst(blind = FALSE) %>%
+      return()
   }
   
-  ## Set design as AD or not and perform estimations
+  # Set design as AD or not and perform estimations
+  dds.filtered %<>% runDESeqWithDesign(~ cogdx)
+  
+  # Get variance stabilized values
   vsd.filtered.significant_only <- dds.filtered %>%
-    getVSDFromDeSeqDS(~ cogdx, min_padj = 0.1)
+    getVSDByPadj(min_padj = 0.1)
   vsd.filtered.all_genes <- dds.filtered %>%
-    getVSDFromDeSeqDS(~ cogdx, min_padj = 1)
+    getVSDByPadj(min_padj = 1)
   
   checkpoint("vsd.filtered.all_genes")
   
+  # Plot distributions after vst
   plt_path <- paste(plt_folder, "gene_dist_vst_sign.jpeg", sep = "")
   vsd.filtered.significant_only %>% assay %>%
     checkDistribution(plt_title = "Gene distribution of significant genes over all samples after VST",
