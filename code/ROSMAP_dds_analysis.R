@@ -104,29 +104,29 @@ rownames(dds.filtered) <- tmp
  # DEA STARTS HERE #
  ###################
 
+# Helper functions
+plot.new()
+savePlot <- function(new_plt, save_path = "plt%03d.jpeg") {
+  jpeg(filename = save_path,
+       pointsize = 12,
+       height = 600,
+       width = 900,
+       quality = 95)
+  plot(new_plt)
+  invisible(dev.off())
+}
+checkpoint <- function (obj_name) {
+  project_path <- "/castor/project/home/gasto/ssADGEM/"
+  checkpoint_path <- paste(project_path, "nobackup/chpt_",
+                           obj_name, ".Rdata", sep = "")
+  if (exists(obj_name)) {
+    save.image(file = checkpoint_path)
+  } else {
+    load(file = checkpoint_path, envir = globalenv())
+  }
+}
+
 if (interactive()){
-  
-  # Helper functions
-  plot.new()
-  savePlot <- function(new_plt, save_path = "plt%03d.jpeg") {
-    jpeg(filename = save_path,
-         pointsize = 12,
-         height = 600,
-         width = 900,
-         quality = 95)
-    plot(new_plt)
-    invisible(dev.off())
-  }
-  checkpoint <- function (obj_name) {
-    project_path <- "/castor/project/home/gasto/ssADGEM/"
-    checkpoint_path <- paste(project_path, "nobackup/chpt_",
-                             obj_name, ".Rdata", sep = "")
-    if (exists(obj_name)) {
-      save.image(file = checkpoint_path)
-    } else {
-      load(file = checkpoint_path, envir = globalenv())
-    }
-  }
   
   ########################
   # METADATA CORRELATION #
@@ -252,6 +252,32 @@ if (interactive()){
     checkDistribution(plt_title = "Gene distribution of all samples after VST",
                       xlabel = bquote(log[2](VST))) %>%
     savePlot(save_path = plt_path)
+  
+  batches <- vsd.filtered.all_genes$Batch %>% levels
+  
+  # Sans batch 7
+  plt_path <- paste(plt_folder, "gene_dist_vst_all_genes_sans_batch_7", sep = "")
+  title <- "Gene distribution of all samples after VST sans batch 7"
+  
+  idx <- vsd.filtered.all_genes$Batch != "7"
+  vsd.filtered.all_genes[, idx] %>% assay %>%
+    checkDistribution(plt_title = title,
+                      xlabel = bquote(log[2](VST))) %>%
+    savePlot(save_path = plt_path)
+  
+  # By batch
+  for (batch in batches) {
+    
+    plt_path <- paste(plt_folder, "gene_dist_vst_all_genes_batch",
+                      batch, ".jpeg", sep = "")
+    title <- paste("Gene distribution of all samples after VST in batch", batch)
+    
+    idx <- vsd.filtered.all_genes$Batch == batch
+    vsd.filtered.all_genes[, idx] %>% assay %>%
+      checkDistribution(plt_title = title,
+                        xlabel = bquote(log[2](VST))) %>%
+      savePlot(save_path = plt_path)
+  }
   
   ######################################
   # SHOWING THAT BATCH 7 IS AN OUTLIER #
