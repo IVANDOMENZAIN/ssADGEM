@@ -253,14 +253,18 @@ if (interactive()){
                       xlabel = bquote(log[2](VST))) %>%
     savePlot(save_path = plt_path)
   
+  ####################################
+  # EXPERIMENTING WITH NORMALISATION #
+  ####################################
+  
   batches <- vsd.filtered.all_genes$Batch %>% levels
   
   # Sans batch 7
-  plt_path <- paste(plt_folder, "gene_dist_vst_all_genes_sans_batch_7", sep = "")
+  plt_path <- paste(plt_folder, "gene_dist_vst_all_genes_sans_batch_7.jpeg",
+                    sep = "")
   title <- "Gene distribution of all samples after VST sans batch 7"
-  
-  idx <- vsd.filtered.all_genes$Batch != "7"
-  vsd.filtered.all_genes[, idx] %>% assay %>%
+  sans7_idx <- vsd.filtered.all_genes$Batch != "7"
+  vsd.filtered.all_genes[, sans7_idx] %>% assay %>%
     checkDistribution(plt_title = title,
                       xlabel = bquote(log[2](VST))) %>%
     savePlot(save_path = plt_path)
@@ -278,6 +282,18 @@ if (interactive()){
                         xlabel = bquote(log[2](VST))) %>%
       savePlot(save_path = plt_path)
   }
+  
+  # CQN on vst sans batch 7
+  sans7_idx <- vsd.filtered.all_genes$Batch != "7"
+  vst_cqn_res <- 2^(vsd.filtered.all_genes[, sans7_idx] %>% assay) %>%
+    cqn(x = gene_data.filtered$percentage_gc_content,
+        lengths = gene_data.filtered$gene.length)
+  vst_adj <- (vst_cqn_res$y + vst_cqn_res$offset)
+  plt_path <- paste(plt_folder, "gene_dist_cqn_post_vst.jpeg", sep = "")
+  vst_adj %>%
+    checkDistribution(plt_title = "Gene distribution after VST and CQN",
+                      xlabel = bquote(log[2](VST))) %>%
+    savePlot(save_path = plt_path)
   
   ######################################
   # SHOWING THAT BATCH 7 IS AN OUTLIER #
