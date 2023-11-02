@@ -12,7 +12,7 @@ if nargin < 1
     prep_model_path = strjoin([project_path, "data/Human-GEM_reference_model.mat"], "");
     counts_path = strjoin([project_path, "data/ROSMAP_normalized_log2counts.txt"], "");
     hash_salt_path = strjoin([project_path, "data/HASH_salt.txt"], "");
-    models_save_dir = strjoin([project_path, "data/"], "");
+    models_save_dir = strjoin([project_path, "nobackup/"], "");
 end
 
 %% Setup
@@ -31,9 +31,6 @@ sample_range = (1 + preamble_width):table_width;
 transcript_struct.genes = extractBefore(counts_table{:, 1}, "."); % Remove the version number as well
 transcript_struct.tissues = counts_table.Properties.VariableNames(sample_range);
 transcript_struct.levels = 2.^counts_table{:, sample_range}; % log2 format, otherwise MRN
-
-% Change to CPM?
-transcript_struct.levels = 10e6 * transcript_struct.levels ./ sum(transcript_struct.levels,1);
 
 %% Pseudonymisation
 
@@ -72,6 +69,7 @@ end
 
 % Construct each model
 skipped_samples_idxs = [];
+tic
 for i = 1:no_samples
 
     if isfile(strjoin([models_save_dir "ROSMAP_" transcript_struct.tissues{i} ".mat"], ""))
@@ -92,7 +90,7 @@ for i = 1:no_samples
         continue
     end
 end
-
+elapsedTime = toc
 % Show which samples were skipped
 disp(skipped_samples_idxs)
 
