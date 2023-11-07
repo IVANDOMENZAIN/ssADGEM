@@ -30,7 +30,7 @@ sample_range = (1 + preamble_width):table_width;
 % Extract information
 transcript_struct.genes = extractBefore(counts_table{:, 1}, "."); % Remove the version number as well
 transcript_struct.tissues = counts_table.Properties.VariableNames(sample_range);
-transcript_struct.levels = 2.^counts_table{:, sample_range}; % log2 format, otherwise MRN
+transcript_struct.levels = 2.^counts_table{:, sample_range} - 1; % log2 format
 
 %% Pseudonymisation
 

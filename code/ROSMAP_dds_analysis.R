@@ -38,6 +38,7 @@ if (interactive()){
   library("pheatmap")
   library("broom") # PCA
   library("latentcor") # Correlation Plot
+  library("grid")
 }
 
 
@@ -461,38 +462,39 @@ if (interactive()){
   # NOT INTERACTIVE, EXPORT NORMALISED COUNTS #
   #############################################
   
-  runDESeqWithDesign <- function(deseqds, dsgn){
-    design(deseqds) <- dsgn
-    deseqds %>%
-      DESeq(parallel = TRUE) %>%
-      return()
-    
-  }
-  getVSDByPadj <- function(deseqds, min_padj = .1) {
-    res <- deseqds %>% results
-    deseqds[res$padj < min_padj, ] %>%
-      vst(blind = FALSE) %>%
-      return()
-  }
+  batches <- dds.filtered$Batch %>% levels
   
-  # Set design as AD or not and perform estimations
-  dds.filtered %<>% runDESeqWithDesign(~ cogdx)
+  # FPKM and TPM + Quantile Normalisation
+  perBatchQuantile <- function(deseqds) {
+    deseqds.new <- deseqds
+    for (batch in batches) {
+      idx <- deseqds.new$Batch == batch
+      assay(deseqds.new[, idx], withDimnames = FALSE) %<>%
+        normalize.quantiles(keep.names = TRUE)
+    }
+    return(deseqds.new)
+  }
+  dds.fpkm <- dds.filtered
+  assay(dds.fpkm, withDimnames = FALSE) <- dds.filtered %>%
+    fpkm(robust = FALSE)
   
-  # Get variance stabilized values
-  vsd.filtered.all_genes <- dds.filtered %>%
-    getVSDByPadj(min_padj = 1)
+  dds.tpm <- dds.fpkm
+  assay(dds.tpm) <- assay(dds.fpkm) %>%
+    sweep(2, colSums(.), '/')
+  assay(dds.tpm) <- 1e6 * assay(dds.tpm)
+  dds.tpm %<>% perBatchQuantile
   
   # Export
   target_path_counts <- target_folder %>%
     paste("ROSMAP_normalized_log2counts.txt.gz", sep = "")
-  vsd.filtered.all_genes %>%
+  dds.tpm %>%
     assay %>%
     write.table(file = gzfile(target_path_counts),
                 col.names = NA)
   
   target_path_meta <- target_folder %>%
     paste("ROSMAP_metadata.csv.gz", sep = "")
-  dds.filtered %>% colData %>%
+  dds.tpm %>% colData %>%
     write.table(file = gzfile(target_path_meta),
                 col.names = NA)
   
