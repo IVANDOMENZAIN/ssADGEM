@@ -108,33 +108,13 @@ rownames(dds.filtered) <- tmp
 # Helper functions
 plot.new()
 savePlot <- function(new_plt, save_path = "plt%03d.jpeg") {
-  if(new_plt %>% is.list) {
-    jpeg(filename = save_path,
-         pointsize = 12,
-         height = 600,
-         width = 900,
-         quality = 95)
-    grid.draw(new_plt$gtable)
-    invisible(dev.off())
-  } else {
-    jpeg(filename = save_path,
-         pointsize = 12,
-         height = 600,
-         width = 900,
-         quality = 95)
-    plot(new_plt)
-    invisible(dev.off())
-  }
-}
-checkpoint <- function (obj_name) {
-  project_path <- "/castor/project/home/gasto/ssADGEM/"
-  checkpoint_path <- paste(project_path, "nobackup/chpt_",
-                           obj_name, ".Rdata", sep = "")
-  if (exists(obj_name)) {
-    save.image(file = checkpoint_path)
-  } else {
-    load(file = checkpoint_path, envir = globalenv())
-  }
+  jpeg(filename = save_path,
+       pointsize = 12,
+       height = 600,
+       width = 900,
+       quality = 95)
+  plot(new_plt)
+  invisible(dev.off())
 }
 
 if (interactive()){
@@ -146,8 +126,6 @@ if (interactive()){
   # Calculate correlations
   metadata_estimates <- dds.filtered %>% colData %>%
     latentcor(types = get_types(.))
-  
-  checkpoint("metadata_estimates")
   
   # Plot pointwise correlation
   plt_path <- paste(plt_folder, "metadata_assoc.jpeg", sep = "")
@@ -161,10 +139,19 @@ if (interactive()){
   ########################
   
   batches <- dds.filtered$Batch %>% levels
+  batch_key <- dds.filtered %>%
+    colData %>%
+    as.data.frame %>%
+    select(Batch)
+  cogdx_key <- dds.filtered %>%
+    colData %>%
+    as.data.frame %>%
+    select(cogdx)
   
   # Plotting functions
   rle_plot <- function(expression_data,
-                       TRANSFORM = function(x) log2(1+x)
+                       TRANSFORM = function(x) log2(1+x),
+                       plt_title = ""
                        ) {
     
     log_expression <- TRANSFORM(expression_data)
@@ -180,10 +167,40 @@ if (interactive()){
       pivot_longer(cols = everything(),
                    names_to = "sample",
                    values_to = "rle") %>%
-      ggplot(aes(x = sample, y = rle)) +
-      geom_boxplot(fill = "slateblue", alpha = 0.2, outlier.shape = NA) +
+      mutate(cogdx = cogdx_key[sample, ]) %>%
+      ggplot(aes(x = sample, y = rle, color = cogdx)) +
+      geom_boxplot(alpha = 0.2, outlier.shape = NA) +
+      labs(title = plt_title) +
       coord_cartesian(ylim = c(-5,5)) +
-      theme(axis.text.x = element_blank())%>%
+      theme(axis.text.x = element_blank(), legend.position = "none") +
+      facet_wrap(vars(cogdx), scales = "free_x") %>%
+      return()
+  }
+  rle_plot_by_batch <- function(expression_data,
+                       TRANSFORM = function(x) log2(1+x),
+                       plt_title = ""
+                       ) {
+    
+    log_expression <- TRANSFORM(expression_data)
+    
+    gene_log_median <- log_expression %>%
+      apply(MARGIN = 1, median)
+    
+    relative_log_expression <- log_expression %>%
+      sweep(MARGIN = 1, STATS = gene_log_median)
+    
+    relative_log_expression %>%
+      as.data.frame %>%
+      pivot_longer(cols = everything(),
+                   names_to = "sample",
+                   values_to = "rle") %>%
+      mutate(batch = batch_key[sample, ]) %>%
+      ggplot(aes(x = sample, y = rle, color = batch)) +
+      geom_boxplot(alpha = 0.2, outlier.shape = NA) +
+      labs(title = plt_title) +
+      coord_cartesian(ylim = c(-5,5)) +
+      theme(axis.text.x = element_blank(), legend.position = "none") +
+      facet_wrap(vars(batch), scales = "free_x") %>%
       return()
   }
   
@@ -197,7 +214,8 @@ if (interactive()){
     
     idx <- dds.filtered$Batch == batch
     dds.filtered[, idx] %>% assay %>%
-      rle_plot(TRANSFORM = function(x) log2(1+x)) %>%
+      rle_plot(TRANSFORM = function(x) log2(1+x),
+               plt_title = title) %>%
       savePlot(save_path = plt_path)
     
   }
@@ -214,29 +232,20 @@ if (interactive()){
   }
   dds.qn <- dds.filtered %>% perBatchQuantile
   
-  # RLE plot per batch after quantile normalisation
-  for (batch in batches) {
-    
-    plt_path <- paste(plt_folder, "post_qn_rle_batch",
-                      batch, ".jpeg", sep = "")
-    title <- paste("Relative Log Expression in batch", batch,
-                   "after quantile normalisation")
-    
-    idx <- dds.qn$Batch == batch
-    dds.qn[, idx] %>% assay %>%
-      rle_plot(TRANSFORM = function(x) log2(1+x)) %>%
-      savePlot(save_path = plt_path)
-    
-  }
+  plt_path <- paste(plt_folder, "post_qn_rle_batch.jpeg", sep = "")
+  title <- paste("Relative Log Expression in after quantile normalisation")
+  dds.qn %>% assay %>%
+    rle_plot_by_batch(TRANSFORM = function(x) log2(1+x), plt_title = title) %>%
+    savePlot(save_path = plt_path)
   
-  ######################
-  # APPLY FPKM AND TPM #
-  ######################
+  ##################
+  # APPLY TPM + QN #
+  ##################
   
   checkDistribution <- function(data,
                                 plt_title = "Gene distributions per sample",
                                 xlabel = bquote(log[2](1+CPM))
-  ) {
+                                ) {
     
     if (is(data, "DESeqDataSet")){
       cpm <- data %>%
@@ -255,35 +264,8 @@ if (interactive()){
       theme(legend.position = "none")
     return(plt)
   }
-  
-  # Pre- versus post-qn CPM distributions per batch
-  for (batch in batches) {
-    
-    idx <- dds.qn$Batch == batch
-    
-    # Pre
-    plt_path <- paste(plt_folder, "gene_dist_batch",
-                      batch, ".jpeg", sep = "")
-    title <- paste("Gene distribution in batch", batch,
-                   "before quantile normalisation")
-    
-    dds.filtered[, idx] %>%
-      checkDistribution(plt_title = title) %>%
-      savePlot(save_path = plt_path)
-    
-    # Post
-    plt_path <- paste(plt_folder, "gene_dist_post_qn_batch",
-                      batch, ".jpeg", sep = "")
-    title <- paste("Gene distribution in batch", batch,
-                   "after quantile normalisation")
-    
-    dds.qn[, idx] %>%
-      checkDistribution(plt_title = title) %>%
-      savePlot(save_path = plt_path)
-    
-  }
-  
-  # FPKM and TPM + Quantile Normalisation
+
+  # TPM
   dds.fpkm <- dds.filtered
   assay(dds.fpkm, withDimnames = FALSE) <- dds.filtered %>%
     fpkm(robust = FALSE)
@@ -293,35 +275,32 @@ if (interactive()){
     sweep(2, colSums(.), '/')
   assay(dds.tpm) <- 1e6 * assay(dds.tpm)
   
-  dds.fpkm %<>% perBatchQuantile
-  dds.tpm %<>% perBatchQuantile
-  
   for (batch in batches) {
     
     idx <- dds.filtered$Batch == batch
     
-    # FPKM
-    plt_path <- paste(plt_folder, "gene_dist_fpkm_batch",
+    # Pre
+    plt_path <- paste(plt_folder, "gene_dist_batch",
                       batch, ".jpeg", sep = "")
     title <- paste("Gene distribution in batch", batch,
-                   "after transforming to FPKM")
-    log2(1+assay(dds.fpkm)[, idx]) %>%
-      checkDistribution(plt_title = title,
-                        xlabel = bquote(log[2](1+FPKM))) %>%
+                   "before TPM")
+    dds.filtered[, idx] %>%
+      checkDistribution(plt_title = title) %>%
       savePlot(save_path = plt_path)
     
-    # TPM
-    plt_path <- paste(plt_folder, "gene_dist_tpm_batch",
+    # Post
+    plt_path <- paste(plt_folder, "gene_dist_TPM_batch",
                       batch, ".jpeg", sep = "")
     title <- paste("Gene distribution in batch", batch,
-                   "after transforming to TPM")
-    
-    log2(1+assay(dds.tpm)[, idx]) %>%
-      checkDistribution(plt_title = title,
-                        xlabel = bquote(log[2](1+TPM))) %>%
+                   "after TPM")
+    dds.tpm[, idx] %>%
+      checkDistribution(plt_title = title) %>%
       savePlot(save_path = plt_path)
     
   }
+  
+  # Quantile Normalisation
+  dds.tpm %<>% perBatchQuantile
   
   #############
   # RUN DESEQ #
@@ -336,6 +315,7 @@ if (interactive()){
   }
   getVSDByPadj <- function(deseqds, min_padj = .1) {
     res <- deseqds %>% results
+    res$padj[res$padj %>% is.na] <- 1
     deseqds[res$padj < min_padj, ] %>%
       vst(blind = FALSE) %>%
       return()
@@ -351,8 +331,6 @@ if (interactive()){
   #################################
   # SHOW BATCH EFFECTS OF 7 AND 8 #
   #################################
-  
-  checkpoint("vsd.filtered")
   
   pcaFromVSD <- function(dst, var = c("Batch", "msex")) {
     
@@ -383,34 +361,10 @@ if (interactive()){
       ylab(sprintf("PC2: %2.0f%% variance",100*pcPercent[2]))
     return(plt)
   }
-  heatmapFromVSD <- function(dst, var = c("cogdx", "Batch")) {
-    
-    normCounts <- dst %>% assay
-    nGenes <- min(normCounts %>% dim %>% .[1],
-                  1000)
-    title <- sprintf("Heatmap of top %s variable DE genes (padj < .1)", nGenes)
-    
-    topVarGenes <- order(-rowVars(normCounts)) %>% head(nGenes)
-    
-    mat <- assay(dst)[topVarGenes, ]
-    mat <- mat - rowMeans(mat)
-    
-    df <- as.data.frame(colData(dst)[, var])
-    plt <- pheatmap(mat,
-             main = title,
-             annotation_col = df,
-             show_colnames = FALSE,
-             show_rownames = FALSE)
-    return(plt)
-  }
   
-  plt_path <- paste(plt_folder, "significant_genes_pca_plot.jpeg", sep = "")
+  plt_path <- paste(plt_folder, "significant_genes_batch_pca_plot.jpeg", sep = "")
   vsd.filtered %>%
     pcaFromVSD %>% savePlot(save_path = plt_path)
-  
-  plt_path <- paste(plt_folder, "significant_genes_heatmap.jpeg", sep = "")
-  a <- vsd.filtered %>%
-    heatmapFromVSD %>% savePlot(save_path = plt_path)
   
   # Set new design including batch as covariate
   dds.batch_design <- dds.filtered %>% runDESeqWithDesign(~ Batch + cogdx)
@@ -421,15 +375,9 @@ if (interactive()){
   # SHOWING THAT RIN IS A COVARIATE #
   ###################################
   
-  checkpoint("vsd.batch_design")
-  
-  plt_path <- paste(plt_folder, "rin_pca_plot.jpeg", sep = "")
+  plt_path <- paste(plt_folder, "significant_genes_rin_pca_plot.jpeg", sep = "")
   vsd.batch_design %>%
-    pcaFromVSD(var = c("RIN", "msex")) %>% savePlot(save_path = plt_path)
-  
-  plt_path <- paste(plt_folder, "rin_heatmap.jpeg", sep = "")
-  vsd.batch_design %>%
-    heatmapFromVSD(var = c("Batch", "RIN")) %>% savePlot(save_path = plt_path)
+    pcaFromVSD(var = c("RIN", "ceradsc_binary")) %>% savePlot(save_path = plt_path)
   
   ## The RIN <-> batch correlation is reflected in the methods used
   ### According to the article responsible for RNA-seq (doi:10.1038/s41593-018-0154-9):
@@ -447,16 +395,6 @@ if (interactive()){
   vsd.rin_design <- dds.rin_design %>%
     getVSDByPadj(min_padj = 0.1)
   
-  checkpoint("vsd.rin_design")
-  
-  plt_path <- paste(plt_folder, "covar_design_pca_plot.jpeg", sep = "")
-  vsd.rin_design %>%
-    pcaFromVSD(var = c("RIN", "msex")) %>% savePlot(save_path = plt_path)
-  
-  plt_path <- paste(plt_folder, "covar_design_heatmap.jpeg", sep = "")
-  vsd.rin_design %>%
-    heatmapFromVSD(var = c("Batch", "RIN")) %>% savePlot(save_path = plt_path)
-  
 } else {
   #############################################
   # NOT INTERACTIVE, EXPORT NORMALISED COUNTS #
@@ -464,7 +402,7 @@ if (interactive()){
   
   batches <- dds.filtered$Batch %>% levels
   
-  # FPKM and TPM + Quantile Normalisation
+  # TPM + Quantile Normalisation
   perBatchQuantile <- function(deseqds) {
     deseqds.new <- deseqds
     for (batch in batches) {
