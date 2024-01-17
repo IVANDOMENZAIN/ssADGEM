@@ -110,8 +110,8 @@ plot.new()
 savePlot <- function(new_plt, save_path = "plt%03d.jpeg") {
   jpeg(filename = save_path,
        pointsize = 12,
-       height = 600/2,
-       width = 900/2,
+       height = 300,
+       width = 450,
        quality = 95)
   plot(new_plt)
   invisible(dev.off())
@@ -302,7 +302,7 @@ if (interactive()){
   }
   
   # Quantile Normalisation
-  dds.tpm %<>% perBatchQuantile
+  dds.tpm.qn <- dds.tpm %>% perBatchQuantile
   
   #############
   # RUN DESEQ #
