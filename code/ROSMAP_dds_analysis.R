@@ -110,8 +110,8 @@ plot.new()
 savePlot <- function(new_plt, save_path = "plt%03d.jpeg") {
   jpeg(filename = save_path,
        pointsize = 12,
-       height = 600,
-       width = 900,
+       height = 600/2,
+       width = 900/2,
        quality = 95)
   plot(new_plt)
   invisible(dev.off())
@@ -132,7 +132,9 @@ if (interactive()){
   metadata_estimates$Rpointwise %>% abs %>%
     pheatmap(main = "Metadata Association Heatmap",
              color = viridis::viridis(8),
-             filename = plt_path)
+             filename = plt_path,
+             width = 9,
+             height = 6)
 
   ########################
   # PER BATCH RLE AND QN #
@@ -244,7 +246,7 @@ if (interactive()){
   
   checkDistribution <- function(data,
                                 plt_title = "Gene distributions per sample",
-                                xlabel = bquote(log[2](1+CPM))
+                                xlabel = bquote(log[2](1+TPM))
                                 ) {
     
     if (is(data, "DESeqDataSet")){
@@ -355,7 +357,7 @@ if (interactive()){
     plt <- pca_fit %>%
       augment(count_df) %>%
       ggplot(aes(.fittedPC1, .fittedPC2, color = get(var[1]), shape = get(var[2]))) +
-      geom_point(size = 3) +
+      geom_point(size = 2, alpha = .75) +
       labs(color = var[1], shape = var[2]) +
       xlab(sprintf("PC1: %2.0f%% variance",100*pcPercent[1])) +
       ylab(sprintf("PC2: %2.0f%% variance",100*pcPercent[2]))
@@ -394,6 +396,24 @@ if (interactive()){
   dds.rin_design <- dds.filtered %>% runDESeqWithDesign(~ RIN + Batch + cogdx)
   vsd.rin_design <- dds.rin_design %>%
     getVSDByPadj(min_padj = 0.1)
+  
+  
+  ##################################
+  # SEEING IF AD DIAGNOSES CLUSTER #
+  ##################################
+  
+  # Check cogdx and ceradsc
+  plt_path <- paste(plt_folder,
+                    "significant_genes_cogdx_pca_plot.jpeg", sep = "")
+  vsd.rin_design %>%
+    pcaFromVSD(var = c("cogdx", "ceradsc")) %>% savePlot(save_path = plt_path)
+
+  # Check ceradsc_binary
+  plt_path <- paste(plt_folder,
+                    "significant_genes_ceradsc_binary_pca_plot.jpeg", sep = "")
+  vsd.rin_design %>%
+    pcaFromVSD(var = c("ceradsc_binary", "ceradsc_binary")) %>%
+    savePlot(save_path = plt_path)
   
 } else {
   #############################################
