@@ -105,13 +105,28 @@ rownames(dds.filtered) <- tmp
  # DEA STARTS HERE #
  ###################
 
-# Helper functions
+# Plot save function
 plot.new()
 savePlot <- function(new_plt, save_path = "plt%03d.jpeg") {
+  
+  # Save as small
   jpeg(filename = save_path,
        pointsize = 12,
        height = 300,
        width = 450,
+       quality = 95)
+  plot(new_plt)
+  invisible(dev.off())
+  
+  save_path %<>% 
+    strsplit(split = ".jpeg") %>%
+    paste("_large.jpeg", sep = "")
+  
+  # Save as large
+  jpeg(filename = save_path,
+       pointsize = 12,
+       height = 600,
+       width = 900,
        quality = 95)
   plot(new_plt)
   invisible(dev.off())
@@ -379,7 +394,8 @@ if (interactive()){
   
   plt_path <- paste(plt_folder, "significant_genes_rin_pca_plot.jpeg", sep = "")
   vsd.batch_design %>%
-    pcaFromVSD(var = c("RIN", "ceradsc_binary")) %>% savePlot(save_path = plt_path)
+    pcaFromVSD(var = c("RIN", "ceradsc_binary")) %>%
+    savePlot(save_path = plt_path)
   
   ## The RIN <-> batch correlation is reflected in the methods used
   ### According to the article responsible for RNA-seq (doi:10.1038/s41593-018-0154-9):
@@ -389,6 +405,22 @@ if (interactive()){
   ### during library construction and leads to uneven coverage distribution
   ### throughout the pool."
   
+  # Plot RIN-Batch relation
+  plt_path <- paste(plt_folder, "rin2batch_boxplot.jpeg", sep = "")
+  plt <- dds.filtered %>%
+    colData %>%
+    as.data.frame %>%
+    ggplot(aes(x=Batch, y=RIN, fill=Batch)) +
+    geom_boxplot() +
+    geom_jitter(color="black", size=0.4, alpha=0.9) +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("RIN distribution by batch")
+  plt %>%
+    savePlot(save_path = plt_path)
+
   # Thus we include RIN and batch as covariates. This will not affect
   # normalisation, but will affect which genes are considered significant and
   # therefore which genes are used to cluster the genes
@@ -414,7 +446,7 @@ if (interactive()){
   vsd.rin_design %>%
     pcaFromVSD(var = c("ceradsc_binary", "ceradsc_binary")) %>%
     savePlot(save_path = plt_path)
-  
+
 } else {
   #############################################
   # NOT INTERACTIVE, EXPORT NORMALISED COUNTS #
