@@ -68,6 +68,7 @@ if isempty(gcp('nocreate'))
 end
 
 % Construct each model
+% TODO: Make threshold seperate for each batch, currently compares against average of all batches
 skipped_samples_idxs = [];
 tic
 for i = 1:no_samples
