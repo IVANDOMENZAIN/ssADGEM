@@ -11,3 +11,7 @@
 
 # Negate for plots
 !/nobackup/plots
+
+# R files
+*.DS_Store
+*.Rhistory
