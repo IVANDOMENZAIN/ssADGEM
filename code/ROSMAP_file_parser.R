@@ -82,7 +82,6 @@ dimnames(count_matrix)[[2]] %<>% sub("X", "", .)
 
 ### Duplicate entry
 if (all(count_matrix[, "150_120419"] == count_matrix[, "150_120419_0_merged"])) {
-
   idx <- which(dimnames(count_matrix)[[2]] == "150_120419_0_merged")
   count_matrix <- count_matrix[, -idx]
 }
