@@ -8,14 +8,18 @@
 /data/HASH*
 /data/Human-GEM*
 /external/*
-
-# Negate for plots
-!/nobackup/plots
-
-# R files
-*.DS_Store
-*.Rhistory
 data/batch_mapping_deidentified.tsv
 data/Cell_types.csv
 data/individual_metadata_deidentified.tsv
 data/MIT_ROSMAP_Multiomics_assay_multiome_metadata.csv
+
+# Negate for plots
+!/nobackup/plots
+*.pdf
+
+# R files
+*.DS_Store
+*.Rhistory
+
+
+
