@@ -76,48 +76,39 @@ annotation_df %<>%
   filter(!is.na(pmi)) %>%
   filter(!is.na(age_death)) %>%
   filter((exclude == FALSE) | is.na(exclude))
-
-## Some of the annotation columns have no variation
+## Some of the annotation columns are mostly NA values, remove such columns
 annotation_df %<>%
   select_if(function(col)
     n_distinct(col) > 1 &
-      count(!is.na(col)) > .5 * length(col) #more than 90% are non-na
+      sum(!is.na(col)) > .9 * length(col) #more than 90% are non-na
   )
-
 ## Some rows/columns are now redundant
 annotation_df %<>% distinct
 annotation_df <- annotation_df[, !duplicated(annotation_df %>% t)]
-
 ## Sample 492_120515 belongs to 2 batches,
 ## assume the latter one is correct
-
 annotation_df %<>% filter(specimenID != "492_120515_0" | is.na(specimenID))
-
-## Remove the counts lacking metadata
+## Remove the counts vectors lacking metadata (remove from the counts matrix)
 count_matrix <- count_matrix[, annotation_df$specimenID]
-
-### Change rows for number of unmapped, etc. into metadata
+## counts matrix contains global info about each sample (#mapped, #unmapped, etc)
+## transfer this info to metadata
 idx <- count_matrix %>%
   dimnames %>%
   .[[1]] %>%
   grep("^N_*", .)
-
 rownames(annotation_df) <- annotation_df$specimenID
-
+#
 annotation_df %<>%
   merge(count_matrix[idx,] %>% t %>% as.data.frame,
         by = 'row.names') %>%
   mutate(Row.names = NULL)
 rownames(annotation_df) <- annotation_df$specimenID # merge removes the rownames
-
 count_matrix <- count_matrix[-idx,]
-
 ## Sort annotations to match order in counts
 annotation_df %<>%
   arrange(
     match(specimenID, colnames(count_matrix))
   )
-
 # Make sure that counts and annotations have the same order
 is_identical <- rownames(annotation_df) == colnames(count_matrix)
 if (!all(is_identical)) {
@@ -132,21 +123,19 @@ annotation_df %<>%
   mutate(
     specimenID = NULL,
     projid = NULL,
-    #individualID = NULL,
+    individualID = NULL,
     ID = NULL,
     Sampleid = NULL
   )
-
 ## Combine information from libraryBatch and Batch
 annotation_df$libraryBatch %<>% as.factor
-
 #annotation_df$Batch %<>%
 #  as.factor %>%
 #  coalesce(annotation_df$libraryBatch) %>%
 #  droplevels
-
 #annotation_df %<>%
 #  mutate(libraryBatch = NULL)
+#rename some columns
 names(annotation_df)[names(annotation_df) == "libraryBatch"] <- "Batch"
 names(annotation_df)[names(annotation_df) == "spanish"] <- "latinx"
 
@@ -165,18 +154,19 @@ levels(annotation_df$cogdx) <- c("NCI", "MCI", "MCI+", "AD", "AD+", "Other")
 
 annotation_df$dcfdx_lv %<>% as.factor
 levels(annotation_df$dcfdx_lv) <- c("NCI", "MCI", "MCI+", "AD", "AD+", "Other")
-
 ## Add a binary ceradsc
-annotation_df$ceradsc_binary <- annotation_df$ceradsc
-annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== "Definite"] <- "AD"
-annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== "Probable"] <- "AD"
-annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== "Possible"] <- "No_AD"
-annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== "No_AD"]    <- "No_AD"
+annotation_df$ceradsc_binary <- as.numeric(annotation_df$ceradsc)
+
 
 annotation_df$ceradsc %<>% as.factor
-annotation_df$ceradsc_binary %<>% as.factor
 levels(annotation_df$ceradsc) <- c("Definite", "Probable", "Possible", "No_AD")
-levels(annotation_df$ceradsc_binary) <- c("AD","AD","No_AD","No_AD")
+
+annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 1] <- "AD"
+annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 2] <- "AD"
+annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 3] <- "No_AD"
+annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 4] <- "No_AD"
+annotation_df$ceradsc_binary %<>% as.factor
+
 
 ## Change age from string to numeric
 annotation_df$age_at_visit_max %<>%
@@ -203,4 +193,5 @@ dds <- DESeqDataSetFromMatrix(
 #  basename %>%
 save(dds, file = target_path, compress = TRUE)
 matC <- as.data.frame(count_matrix)
-write_delim(matC, file = 'data/filtered_counts.txt',delim = '\t', na='NA')
+write_delim(matC, file = 'data/ROSMAP_annotated_samples_counts.txt',delim = '\t', na='NA')
+write_delim(annotation_df, file = 'data/ROSMAP_annotation_samples.txt',delim = '\t', na='NA')
