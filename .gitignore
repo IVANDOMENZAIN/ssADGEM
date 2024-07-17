@@ -4,14 +4,13 @@
 *.log
 
 # Sensitive/Personal Data or External Resources
-/data/ROSMAP*
+/data/*ROSMAP*
 /data/HASH*
-/data/Human-GEM*
 /external/*
-data/batch_mapping_deidentified.tsv
-data/Cell_types.csv
-data/individual_metadata_deidentified.tsv
-data/MIT_ROSMAP_Multiomics_assay_multiome_metadata.csv
+*batch_mapping_deidentified.tsv
+*Cell_types.csv
+*individual_metadata_deidentified.tsv
+*MIT_ROSMAP_Multiomics_assay_multiome_metadata.csv
 
 # Negate for plots
 !/nobackup/plots
@@ -20,6 +19,9 @@ data/MIT_ROSMAP_Multiomics_assay_multiome_metadata.csv
 # R files
 *.DS_Store
 *.Rhistory
+
+#HumanGEM files
+/data/Human-GEM*
 
 
 
