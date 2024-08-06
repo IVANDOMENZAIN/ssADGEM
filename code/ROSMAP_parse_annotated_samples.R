@@ -1,35 +1,37 @@
-# Installing required R packages ===============================================
-if (!requireNamespace("rstudioapi", quietly = TRUE)){
-  install.packages("rstudioapi")}
-if (!requireNamespace("tidyverse", quietly = TRUE)){
-  install.packages("tidyverse")}
-if (!requireNamespace("magrittr", quietly = TRUE)){
-  install.packages("magrittr")}
-if (!requireNamespace("DESeq2", quietly = TRUE)){
-  install.packages("DESeq2")}
-if (!require("DESeq2", quietly = TRUE))
-  BiocManager::install("DESeq2")
-# Changing working directory ===================================================
-# Setting the working directory to the directory containing this repository
+# # Installing required R packages ===============================================
+# if (!requireNamespace("rstudioapi", quietly = TRUE)){
+#   install.packages("rstudioapi")}
+# if (!requireNamespace("tidyverse", quietly = TRUE)){
+#   install.packages("tidyverse")}
+# if (!requireNamespace("magrittr", quietly = TRUE)){
+#   install.packages("magrittr")}
+# if (!requireNamespace("DESeq2", quietly = TRUE)){
+#   install.packages("DESeq2")}
+# if (!require("DESeq2", quietly = TRUE))
+#   BiocManager::install("DESeq2")
+# # Changing working directory ===================================================
+# # Setting the working directory to the directory containing this repository
+# setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+# setwd('..')
+# 
+# 
+# # Parse arguments from terminal
+# if (!interactive()) {
+#   args <- commandArgs(trailingOnly = TRUE)
+#   if (length(args) != 2) {
+#     stop("Format: ./<script> <data-folder> <target>", call. = FALSE)
+#   }
+#   directory_path <- args[1]
+#   target_path <- args[2]
+# } else {
+#   # For using interactively, change paths to appropriate
+#   project_path <- getwd()
+#   directory_path <- paste(project_path, "external/synapse_dir/", sep = "")
+#   target_path <- paste(project_path, "/data/ROSMAP_dds.rds", sep = "")
+# }
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 setwd('..')
-
-
-# Parse arguments from terminal
-if (!interactive()) {
-  args <- commandArgs(trailingOnly = TRUE)
-  if (length(args) != 2) {
-    stop("Format: ./<script> <data-folder> <target>", call. = FALSE)
-  }
-  directory_path <- args[1]
-  target_path <- args[2]
-} else {
-  # For using interactively, change paths to appropriate
-  project_path <- getwd()
-  directory_path <- paste(project_path, "external/synapse_dir/", sep = "")
-  target_path <- paste(project_path, "/data/ROSMAP_dds.rds", sep = "")
-}
-
+base_dir <- getwd()
 
 # Needed libraries
 library("tidyverse") # Tibble dataframes
@@ -165,7 +167,7 @@ annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 1] <- "AD"
 annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 2] <- "AD"
 annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 3] <- "No_AD"
 annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 4] <- "No_AD"
-annotation_df$ceradsc_binary %<>% as.factor
+#annotation_df$ceradsc_binary %<>% as.factor
 
 
 ## Change age from string to numeric
@@ -175,23 +177,31 @@ annotation_df$age_at_visit_max %<>%
 annotation_df$age_death %<>%
   sub("\\+", "", .) %>% # 90+ is treated as 90
   as.numeric
-
+annotation_df$braaksc %<>% as.numeric
+#Establish a definite and stringent AD diagnosis
+ADpos <- intersect(which((annotation_df$ceradsc_binary == 'AD' & (annotation_df$cogdx == 'AD' |  
+                          annotation_df$cogdx == 'AD+'))), which(annotation_df$braaksc>=5))
+annotation_df$AD <- FALSE
+annotation_df$AD[ADpos] <- TRUE
 # Construct the DESeq data set (dds),
 # design is irrelevant as it will be changed later
-dds <- DESeqDataSetFromMatrix(
-  countData = count_matrix,
-  colData = annotation_df,
-  design = ~ 1
-)
-
-# Save the dds
-#target_path %>%
-#  dirname %>%
-#  setwd
-
-#target_path %>%
-#  basename %>%
-save(dds, file = target_path, compress = TRUE)
+# dds <- DESeqDataSetFromMatrix(
+#   countData = count_matrix,
+#   colData = annotation_df,
+#   design = ~ 1
+# )
+# # Save the dds
+# #target_path %>%
+# #  dirname %>%
+# #  setwd
+# 
+# #target_path %>%
+# #  basename %>%
+# save(dds, file = target_path, compress = TRUE)
+gene_ids <- rownames(count_matrix)
 matC <- as.data.frame(count_matrix)
+rownames(matC) <- gene_ids
+gene_ids <- as.data.frame(gene_ids)
+write_delim(gene_ids, file = 'data/ROSMAP_annotated_samples_geneIDs.txt',delim = '\t', na='NA')
 write_delim(matC, file = 'data/ROSMAP_annotated_samples_counts.txt',delim = '\t', na='NA')
 write_delim(annotation_df, file = 'data/ROSMAP_annotation_samples.txt',delim = '\t', na='NA')
