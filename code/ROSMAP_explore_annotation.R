@@ -14,13 +14,13 @@ setwd('..')
 base_dir <- getwd()
 resultsPath <- paste(base_dir,"/results",sep = "")
 dir.create(resultsPath)
-resultsPath <- paste(resultsPath,"/plots",sep = "")
+resultsPath <- paste(resultsPath,"/plots/metadata/",sep = "")
 dir.create(resultsPath)
 #load data
 counts_matrix <- read_delim(file = 'data/ROSMAP_annotated_samples_counts.txt',delim = '\t', na='NA')
 annotation    <- read_delim(file = 'data/ROSMAP_annotation_samples.txt',delim = '\t', na='NA')
-vector 
-annotation$AD <- annotation$ceradsc_binary == 'AD' & (annotation$cogdx == 'AD' |  annotation$cogdx == 'AD+') & annotation$braaksc>=5
+annotation$braaksc %<>% as.numeric
+#annotation$AD <- (annotation$ceradsc_binary == 'AD' & (annotation$cogdx == 'AD' |  annotation$cogdx == 'AD+')) & annotation$braaksc>=5
 
 #first, let´s get an overview of the metadata associated to samples
 head(annotation)
@@ -116,14 +116,16 @@ p <- ggplot(annotation,aes(x = ceradsc_binary, fill = AD)) + theme_bw() +
 file_name <- paste(resultsPath,"/ROSMAP_ceradsc_binary.pdf",sep="")
 ggsave(file_name, p, width = 10, height = 10, units = "cm",dpi = 400)
 
+annotation$cogdx <- as.factor(annotation$cogdx)
 p <- ggplot(annotation,aes(x = cogdx, fill = AD)) + theme_bw() +
   geom_bar(position = "stack")+ scale_fill_wa_d(wacolors$volcano) + 
-  xlab("Final cognitive diagnosis") 
+  xlab("Cognitive diagnosis (death)") 
 file_name <- paste(resultsPath,"/ROSMAP_cogdx.pdf",sep="")
 ggsave(file_name, p, width = 10, height = 10, units = "cm",dpi = 400)
 
+annotation$dcfdx_lv <- as.factor(annotation$dcfdx_lv)
 p <- ggplot(annotation,aes(x = dcfdx_lv, fill = AD)) + theme_bw() +
   geom_bar(position = "stack")+ scale_fill_wa_d(wacolors$volcano) + 
-  xlab("Final cognitive diagnosis") 
-file_name <- paste(resultsPath,"/ROSMAP_cogdx.pdf",sep="")
+  xlab("Cognitive diagnosis (last visit)") 
+file_name <- paste(resultsPath,"/ROSMAP_dcfdx_lv.pdf",sep="")
 ggsave(file_name, p, width = 10, height = 10, units = "cm",dpi = 400)
