@@ -20,7 +20,19 @@ dir.create(resultsPath)
 counts_matrix <- read_delim(file = 'data/ROSMAP_annotated_samples_counts.txt',delim = '\t', na='NA')
 annotation    <- read_delim(file = 'data/ROSMAP_annotation_samples.txt',delim = '\t', na='NA')
 annotation$braaksc %<>% as.numeric
-#annotation$AD <- (annotation$ceradsc_binary == 'AD' & (annotation$cogdx == 'AD' |  annotation$cogdx == 'AD+')) & annotation$braaksc>=5
+#redefine AD and no AD groups
+annotation$AD <- NA
+ADpos <- which(annotation$ceradsc_binary == 'AD' & (annotation$cogdx == 'AD' | annotation$cogdx == 'AD+'))
+No_AD <- which(annotation$ceradsc_binary == 'No_AD' & annotation$cogdx == 'NCI')
+annotation$AD[ADpos] <- 'AD'
+annotation$AD[No_AD] <- 'No_AD'
+pos2keep <- c(ADpos,No_AD)
+pos2keep <- sort(pos2keep)
+annotation <- annotation[pos2keep,]
+counts_matrix <- counts_matrix[,pos2keep]
+#save results
+write_delim(annotation, file = 'data/ROSMAP_valid_annotation_samples.txt',delim = '\t', na='NA')
+write_delim(counts_matrix, file = 'data/ROSMAP_valid_annotated_samples_counts.txt',delim = '\t', na='NA')
 
 #first, let´s get an overview of the metadata associated to samples
 head(annotation)
