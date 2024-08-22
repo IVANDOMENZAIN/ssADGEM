@@ -15,20 +15,7 @@
 # setwd('..')
 # 
 # 
-# # Parse arguments from terminal
-# if (!interactive()) {
-#   args <- commandArgs(trailingOnly = TRUE)
-#   if (length(args) != 2) {
-#     stop("Format: ./<script> <data-folder> <target>", call. = FALSE)
-#   }
-#   directory_path <- args[1]
-#   target_path <- args[2]
-# } else {
-#   # For using interactively, change paths to appropriate
-#   project_path <- getwd()
-#   directory_path <- paste(project_path, "external/synapse_dir/", sep = "")
-#   target_path <- paste(project_path, "/data/ROSMAP_dds.rds", sep = "")
-# }
+
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 setwd('..')
 base_dir <- getwd()
@@ -36,7 +23,6 @@ base_dir <- getwd()
 # Needed libraries
 library("tidyverse") # Tibble dataframes
 library("magrittr") # Piping
-library("DESeq2")
 #data 
 source('code/load_data.R')
 output               <- load_data()
@@ -44,7 +30,6 @@ count_matrix         <-output[[1]]
 rnaseq_metadata      <- output[[2]]
 clinical_metadata    <- output[[3]]
 biospecimen_metadata <- output[[4]]
-
 sample_ids   <- colnames(count_matrix)
 gene_ids     <- rownames(count_matrix)[5:nrow(count_matrix)]
 #count_matrix <- count_matrix[5:nrow(count_matrix),]
@@ -57,7 +42,6 @@ annotation_df <- merge(rnaseq_metadata, biospecimen_metadata,
 annotation_df %<>% merge(clinical_metadata,
                          by = "individualID",
                          all = TRUE)
-
 ## annotation/count_matrix has some entries that should be removed
 
 ### Duplicate entry
@@ -116,10 +100,8 @@ is_identical <- rownames(annotation_df) == colnames(count_matrix)
 if (!all(is_identical)) {
   stop("There are unannotated samples in the counts", call. = FALSE)
 }
-
 # Change numeric codes to factors, add explanatory
 # level names to some, rename columns, and remove unneeded columns
-
 ## Use only rownames (specimenID) as keys
 annotation_df %<>%
   mutate(
@@ -131,44 +113,30 @@ annotation_df %<>%
   )
 ## Combine information from libraryBatch and Batch
 annotation_df$libraryBatch %<>% as.factor
-#annotation_df$Batch %<>%
-#  as.factor %>%
-#  coalesce(annotation_df$libraryBatch) %>%
-#  droplevels
-#annotation_df %<>%
-#  mutate(libraryBatch = NULL)
 #rename some columns
 names(annotation_df)[names(annotation_df) == "libraryBatch"] <- "Batch"
 names(annotation_df)[names(annotation_df) == "spanish"] <- "latinx"
-
 annotation_df$Study %<>% as.factor
 annotation_df$msex %<>% as.factor
 levels(annotation_df$msex) <- c("Female", "Male")
 levels(annotation_df$Study) <- c("MAP", "ROS")
-
 annotation_df$race %<>% as.factor
 annotation_df$latinx %<>% as.factor
 annotation_df$apoe_genotype %<>% as.factor
 annotation_df$braaksc %<>% as.factor
-
 annotation_df$cogdx %<>% as.factor
 levels(annotation_df$cogdx) <- c("NCI", "MCI", "MCI+", "AD", "AD+", "Other")
-
 annotation_df$dcfdx_lv %<>% as.factor
 levels(annotation_df$dcfdx_lv) <- c("NCI", "MCI", "MCI+", "AD", "AD+", "Other")
 ## Add a binary ceradsc
 annotation_df$ceradsc_binary <- as.numeric(annotation_df$ceradsc)
-
-
 annotation_df$ceradsc %<>% as.factor
 levels(annotation_df$ceradsc) <- c("Definite", "Probable", "Possible", "No_AD")
-
 annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 1] <- "AD"
 annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 2] <- "AD"
 annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 3] <- "No_AD"
 annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 4] <- "No_AD"
 #annotation_df$ceradsc_binary %<>% as.factor
-
 
 ## Change age from string to numeric
 annotation_df$age_at_visit_max %<>%
@@ -183,21 +151,7 @@ ADpos <- intersect(which((annotation_df$ceradsc_binary == 'AD' & (annotation_df$
                           annotation_df$cogdx == 'AD+'))), which(annotation_df$braaksc>=5))
 annotation_df$AD <- FALSE
 annotation_df$AD[ADpos] <- TRUE
-# Construct the DESeq data set (dds),
-# design is irrelevant as it will be changed later
-# dds <- DESeqDataSetFromMatrix(
-#   countData = count_matrix,
-#   colData = annotation_df,
-#   design = ~ 1
-# )
-# # Save the dds
-# #target_path %>%
-# #  dirname %>%
-# #  setwd
-# 
-# #target_path %>%
-# #  basename %>%
-# save(dds, file = target_path, compress = TRUE)
+
 gene_ids <- rownames(count_matrix)
 matC <- as.data.frame(count_matrix)
 rownames(matC) <- gene_ids
