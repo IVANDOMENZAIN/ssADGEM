@@ -23,13 +23,19 @@ counts         <- read_delim(file = 'data/ROSMAP_counts_processed_4DE.txt',delim
 AD_idxs <- which(annotation$AD=='AD')
 NCIidxs <- which(annotation$AD=='No_AD')
 
+NCIdf <- counts[,NCIidxs]
+sdevs <- rowSds(NCIdf)
+meanV <- rowMeans(NCIdf)
+coefV <- sdevs/meanV
+toKeep <- which(coefV<1)
+annotation$groups <- rep(0,nrow(annotation))
+annotation$groups[AD_idxs] <- 2
+annotation$groups[NCIidxs] <- 1
 #Perform DE analysis AD_i vs. lumped_NCI
 for (i in 1:length(AD_idxs)){
   newIdxs <- c(AD_idxs[i],NCIidxs)
-  cmat <- counts[,newIdxs]
-  annotation$groups <- rep(0,nrow(annotation))
-  annotation$groups[AD_idxs] <- 2
-  annotation$groups[NCIidxs] <- 1
+  cmat <- as.data.frame(counts[toKeep,newIdxs])
+  
   dataset <- DESeqDataSetFromMatrix(
     countData = cmat,
     colData = annotation[newIdxs,],
@@ -40,7 +46,7 @@ for (i in 1:length(AD_idxs)){
   res <- nbinomWaldTest(dds_p)
   res <- results(res)
   #dds <- DESeq(dataset)
-  DEdf <- data.frame(gene = (res@rownames),meanVal  = res@listData$baseMean, log2FC = res@listData$log2FoldChange,pval = res@listData$pvalue,padj = res@listData$padj)
+  DEdf <- data.frame(gene = genes$x[toKeep],meanVal  = res@listData$baseMean, log2FC = res@listData$log2FoldChange,pval = res@listData$pvalue,padj = res@listData$padj)
   DEdf$pval[is.na(DEdf$padj)] <- 1
   newDF <- DEdf[abs(DEdf$log2FC) >=1 & DEdf$pval<=0.01,]
   newDF <- newDF[order(-newDF$log2FC),]
@@ -48,8 +54,6 @@ for (i in 1:length(AD_idxs)){
   write.table(newDF,file = paste(resultsPath,'DE_genes_signif_AD_',i,'.txt',sep=""),row.names= FALSE,col.names=TRUE,sep= "\t")
 }
 #get a summary of DE results
-patient <- colnames(counts_matrix.processed)
-annotation$patient <- patient
 DE_genes <- data.frame(genes = genes,Dreg = rep(0,nrow(genes)),Ureg = rep(0,nrow(genes)))
 for (i in 1:length(which(annotation$AD=='AD'))){
   DEdf <- read_delim(paste('results/DE_analysis/DE_genes_signif_AD_',i,'.txt',sep=""),delim= "\t")
