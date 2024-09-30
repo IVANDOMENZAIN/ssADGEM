@@ -44,7 +44,7 @@ annotation_df %<>% merge(clinical_metadata,
                          all = TRUE)
 ## annotation/count_matrix has some entries that should be removed
 
-### Duplicate entry
+### REmove Duplicate entry
 if (all(count_matrix[, "150_120419"] == count_matrix[, "150_120419_0_merged"])) {
   idx <- which(dimnames(count_matrix)[[2]] == "150_120419_0_merged")
   count_matrix <- count_matrix[, -idx]
@@ -82,19 +82,21 @@ idx <- count_matrix %>%
   dimnames %>%
   .[[1]] %>%
   grep("^N_*", .)
+
 rownames(annotation_df) <- annotation_df$specimenID
 #
 annotation_df %<>%
   merge(count_matrix[idx,] %>% t %>% as.data.frame,
         by = 'row.names') %>%
   mutate(Row.names = NULL)
-rownames(annotation_df) <- annotation_df$specimenID # merge removes the rownames
+
 count_matrix <- count_matrix[-idx,]
 ## Sort annotations to match order in counts
 annotation_df %<>%
   arrange(
     match(specimenID, colnames(count_matrix))
   )
+rownames(annotation_df) <- annotation_df$specimenID # merge removes the rownames
 # Make sure that counts and annotations have the same order
 is_identical <- rownames(annotation_df) == colnames(count_matrix)
 if (!all(is_identical)) {
@@ -133,8 +135,8 @@ annotation_df$ceradsc_binary <- as.numeric(annotation_df$ceradsc)
 annotation_df$ceradsc %<>% as.factor
 levels(annotation_df$ceradsc) <- c("Definite", "Probable", "Possible", "No_AD")
 annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 1] <- "AD"
-annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 2] <- "AD"
-annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 3] <- "No_AD"
+annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 2] <- "other"
+annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 3] <- "other"
 annotation_df$ceradsc_binary[annotation_df$ceradsc_binary== 4] <- "No_AD"
 #annotation_df$ceradsc_binary %<>% as.factor
 
@@ -147,10 +149,11 @@ annotation_df$age_death %<>%
   as.numeric
 annotation_df$braaksc %<>% as.numeric
 #Establish a definite and stringent AD diagnosis
-ADpos <- intersect(which((annotation_df$ceradsc_binary == 'AD' & (annotation_df$cogdx == 'AD' |  
-                          annotation_df$cogdx == 'AD+'))), which(annotation_df$braaksc>=5))
-annotation_df$AD <- FALSE
-annotation_df$AD[ADpos] <- TRUE
+ADpos <- which((annotation_df$ceradsc_binary == 'AD'&annotation_df$cogdx == 'AD'))
+NoADpos <- which((annotation_df$ceradsc == 'No_AD' & annotation_df$cogdx == 'NCI'))
+annotation_df$AD <- rep('other',nrow(annotation_df))
+annotation_df$AD[ADpos] <- 'AD'
+annotation_df$AD[NoADpos] <- 'No_AD'
 
 gene_ids <- rownames(count_matrix)
 matC <- as.data.frame(count_matrix)
