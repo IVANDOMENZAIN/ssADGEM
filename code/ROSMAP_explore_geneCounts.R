@@ -8,6 +8,8 @@ library("magrittr") # Piping
 library("DESeq2")
 library("ggplot2")
 library("viridis")
+library("plyr")
+
 #set wd and create the necessary ones for results
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 setwd('..')
@@ -16,77 +18,25 @@ resultsPath <- paste(base_dir,"/results",sep = "")
 dir.create(resultsPath)
 resultsPath <- paste(resultsPath,"/plots/gene_counts/",sep = "")
 dir.create(resultsPath)
-#load data
-gene_ids <- read_delim(file = 'data/ROSMAP_annotated_samples_geneIDs.txt',delim = '\t', na='NA')
-counts_matrix <- read_delim(file = 'data/ROSMAP_annotated_samples_counts.txt',delim = '\t', na='NA')
-annotation    <- read_delim(file = 'data/ROSMAP_annotation_samples.txt',delim = '\t', na='NA')
-counts_matrix <- as.data.frame(counts_matrix)
-annotation$braaksc %<>% as.numeric
-rownames(counts_matrix) <- t(gene_ids)
-# analyze distributions per batch
-#let's see the batches at disposal
-batches <- as.factor(annotation$Batch)
-print(batches)
-#Samples belonging to multiple batches were found, let's delete them from the study
-idx2rmv       <- which(annotation$Batch == "0, 6, 7")
-annotation    <- annotation[-idx2rmv,]
-counts_matrix <- counts_matrix[,-idx2rmv]
-df_counts     <- as.data.frame(t(counts_matrix))
-df_counts$batch <- annotation$Batch
-df_counts$AD    <- annotation$AD
-
-
-counts2plot<- data.frame(counts = c(t(df_counts[,1:(ncol(df_counts)-2)])),batch = rep(df_counts[,ncol(df_counts)-1],nrow(counts_matrix)),AD = rep(df_counts[,ncol(df_counts)],nrow(counts_matrix)))#, AD = c(df_counts[,ncol(df_counts)]))
-counts2plot$batch <- as.factor(counts2plot$batch)
-counts2plot$counts <- as.numeric(counts2plot$counts)
-counts2plot$AD <- as.factor(counts2plot$AD)
-counts2plot$cpm <- counts2plot$counts/1E6#log10(counts2plot$counts+1)
-counts2plot$lcpm <- log2(counts2plot$cpm)
-#counts2plot$counts[counts2plot$counts>2] <- 2
-p <- ggplot(counts2plot, aes(x=batch, y=lcpm, fill=AD)) +
-  geom_violin(trim=TRUE) + theme_minimal() + scale_fill_wa_d(wacolors$volcano)   #+
-  #stat_summary(fun.data="mean_sdl", mult=1,geom="crossbar", width=0.2) +
-  #stat_summary(fun.data=mean_sdl, mult=1,geom="pointrange", color="red")
-file_name <- paste(resultsPath,"/ROSMAP_counts_perBatch.pdf",sep="")
-ggsave(file_name, p, width = 12, height = 10, units = "cm",dpi = 400)
-#Distributions of gene counts for batch 0 look a bit different to the rest, let's test 
-#using Kolmogorov-Smirnov test
-test_matrix <- matrix(1, 9, 9) 
-for (i in 0:8){
-  dist_i <- counts2plot$cpm[counts2plot$batch==i]
-  for (j in 0:8){
-    dist_j   <- counts2plot$cpm[counts2plot$batch==j]
-    #if(j<i){
-      KSresult <- ks.test(dist_i,dist_j, alternative = "two.sided")
-      test_matrix[i+1,j+1] <- KSresult$p.value
-    #}
-  }
-}
-#significant differences were found among almost all pairwise comparisons, not 
-#possible to draw conclusions from this
-
 # now get a summary of gene expression separated by groups, AD vs Non-AD, are 
 #there any genes expressed in most samples in one group but not in the other?
 #let's see
-#AD_counts    <- counts_matrix[,which(annotation$AD==TRUE)]
-#nonAD_counts <- counts_matrix[,which(annotation$AD==FALSE)]
 counts_binary <- counts_matrix
 counts_binary[counts_binary>0] <- 1
-exp_in_samples_AD <- rowSums(counts_binary[,which(annotation$AD==TRUE)],na.rm = TRUE)
-exp_in_samples_NoAD <- rowSums(counts_binary[,which(annotation$AD==FALSE)],na.rm = TRUE)
+exp_in_samples_AD   <- data.frame(n_exp = rowSums(counts_binary[,which(annotation$AD=='AD')],na.rm = TRUE))
+exp_in_samples_NoAD <- data.frame(n_exp = rowSums(counts_binary[,which(annotation$AD=='No_AD')],na.rm = TRUE))
 
 file_name <- paste(resultsPath,"/ROSMAP_number_of_expressions_per_gene_NoAD.pdf",sep="")
-pdf(file=file_name,width=4,height=4)
-hist(exp_in_samples_NoAD, main = "Expressed in non-AD samples",
-          xlim = c(0,length(which(annotation$AD==FALSE))),xlab = "Number of ocurrences")
-dev.off()
+p <- ggplot(exp_in_samples_NoAD, aes(x=n_exp)) + 
+     geom_histogram(binwidth = 1) + scale_fill_wa_d(wacolors$volcano) + 
+     theme_minimal() + xlab("Number of ocurrences")
+ggsave(file_name, p, width = 10, height = 10, units = "cm",dpi = 400)
 
 file_name <- paste(resultsPath,"/ROSMAP_number_of_expressions_per_gene_AD.pdf",sep="")
-pdf(file=file_name,width=4,height=4)
-hist(exp_in_samples_AD, main = "Expressed in AD samples",
-     xlim = c(0,length(which(annotation$AD==TRUE))),xlab = "Number of ocurrences")
-dev.off()
-
+p <- ggplot(exp_in_samples_AD, aes(x=n_exp)) + 
+     geom_histogram(binwidth = 1) + scale_fill_wa_d(wacolors$volcano) + 
+     theme_minimal() + xlab("Number of ocurrences")
+ggsave(file_name, p, width = 10, height = 10, units = "cm",dpi = 400)
 #The number of ocurrences per gene follows a U-shaped distribution for both AD and 
 #non-AD samples, let's identify those genes that are never expressed
 neverExpressed <- which(exp_in_samples_AD==0 & exp_in_samples_NoAD==0)
@@ -94,9 +44,62 @@ noExpGenes <- as.data.frame(rownames(counts_matrix[neverExpressed,]))
 #save the list of never expressed genes (maybe for GSEA for control, basically non
 #neuronal gene sets should pop-up here) and also remove them from the dataset for 
 #further analysis
-temp <- counts_matrix[-noExpGenes]
+counts_matrix <- counts_matrix[-neverExpressed,]
+exp_in_samples_AD <- exp_in_samples_AD[-neverExpressed]
+exp_in_samples_NoAD <- exp_in_samples_NoAD[-neverExpressed]
 write_delim(noExpGenes, file = 'data/genes_never_expressed.txt',delim = '\t', na='NA')
-#Keep genes expressed in at least 20% of the samples
-low_occurrence_genes_noAD <- which(exp_in_samples_NoAD<0.2*ncol(counts_matrix))
-low_occurrence_genes_AD <- which(exp_in_samples_AD<0.2*ncol(counts_matrix))
+#Keep genes expressed in at least 25% of the samples
+low_occurrence_genes_noAD <- which(exp_in_samples_NoAD<0.25*ncol(counts_matrix))
+low_occurrence_genes_AD <- which(exp_in_samples_AD<0.25*ncol(counts_matrix))
+#check for genes that are lowly ocurring in both subsets
 low_occur <- intersect(low_occurrence_genes_noAD,low_occurrence_genes_AD)
+#Are there highly occurring genes in AD that are low occuring in non-AD?
+high_occur_AD <- which(exp_in_samples_AD>=0.75*ncol(counts_matrix))
+opposite_occur_AD <- intersect(high_occur_AD,low_occurrence_genes_noAD)
+#there are no such cases, test for the opposite then
+high_occur_NoAD <- which(exp_in_samples_NoAD>=0.75*ncol(counts_matrix))
+opposite_occur_NoAD <- intersect(high_occur_NoAD,low_occurrence_genes_AD)
+#Same, there seems to be no opposite occurence of gene expression among AD vs Non-AD samples
+#Now let's be more granular and analyse this sample by sample (AD)
+AD_idxs <- which(annotation$AD)
+AD_sample_exclusive_genes <- data.frame(id = numeric(length(AD_idxs)), exc_genes = numeric(length(AD_idxs)), n_exc_genes = numeric(length(AD_idxs)))
+AD_sample_exclusive_genes$exc_genes   <- 0
+AD_sample_exclusive_genes$n_exc_genes <- 0
+counter <- 1
+for (i in AD_idxs){
+  AD_sample_i <- counts_matrix[,i]
+  difference  <- which(AD_sample_i>0 & exp_in_samples_NoAD==0)
+  n_genes     <- length(difference)
+  AD_sample_exclusive_genes$id[counter] <- i
+  if (n_genes>0){
+    AD_sample_exclusive_genes$exc_genes[counter]   <- paste(difference,collapse=",")
+    AD_sample_exclusive_genes$n_exc_genes[counter] <- n_genes
+  }
+  counter <- counter+1
+}
+#visualize this on a histogram
+#pdf(file=file_name,width=4,height=4)
+p <- ggplot(AD_sample_exclusive_genes, aes(x=n_exc_genes)) + 
+     geom_histogram(binwidth = 1) + scale_fill_wa_d(wacolors$volcano) + theme_minimal()
+file_name <- paste(resultsPath,"/ROSMAP_AD_excl_genes_perSample.pdf",sep="")
+ggsave(file_name, p, width = 10, height = 10, units = "cm",dpi = 400)
+
+#the majority of AD samples express less than 5 genes that are not expressed in the non-AD samples
+#let's identify these genes, and check their frequency of expression in AD samples
+AD_gene_idx_vector <- as.numeric(unlist(strsplit(paste(AD_sample_exclusive_genes$exc_genes,collapse=","), ',')))
+AD_gene_idx_vector <- AD_gene_idx_vector[AD_gene_idx_vector>0]
+#AD_gene_idx_vector <- data.frame(genes = AD_gene_idx_vector)
+AD_gene_excl_freq <- data.frame(id = rownames(counts_matrix)[unique(AD_gene_idx_vector)],
+                                index = unique(AD_gene_idx_vector),
+                                freq  = rep(0,length(unique(AD_gene_idx_vector))))
+for (i in 1:length(AD_gene_excl_freq$index)){
+  AD_gene_excl_freq$freq[i] <- length(which(AD_gene_idx_vector == AD_gene_excl_freq$index[i]))
+}
+p <- ggplot(AD_gene_excl_freq, aes(x=freq)) + 
+  geom_histogram(binwidth = 1) + scale_fill_wa_d(wacolors$volcano) + theme_minimal()
+file_name <- paste(resultsPath,"/ROSMAP_AD_excl_genes_frequency.pdf",sep="")
+ggsave(file_name, p, width = 10, height = 10, units = "cm",dpi = 400)
+#get those AD-specific genes that are expressed in more than 1 sample
+AD_exclusive_genes_repeated <- AD_gene_excl_freq[AD_gene_excl_freq$freq>1,]
+write_delim(AD_exclusive_genes_repeated, file = 'results/AD_exclusiveGenes_repeated.txt',delim = '\t', na='NA')
+write_delim(data.frame(id = rownames(counts_matrix)), file = 'results/ROSMAP_expressed_genes.txt',delim = '\t', na='NA')

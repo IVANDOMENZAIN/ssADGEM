@@ -105,14 +105,16 @@ if (!all(is_identical)) {
 # Change numeric codes to factors, add explanatory
 # level names to some, rename columns, and remove unneeded columns
 ## Use only rownames (specimenID) as keys
-annotation_df %<>%
-  mutate(
-    specimenID = NULL,
-    projid = NULL,
-    individualID = NULL,
-    ID = NULL,
-    Sampleid = NULL
-  )
+
+# annotation_df %<>%
+#   mutate(
+#     specimenID = NULL,
+#     projid = NULL,
+#     individualID = NULL,
+#     ID = NULL,
+#     Sampleid = NULL
+#   )
+
 ## Combine information from libraryBatch and Batch
 annotation_df$libraryBatch %<>% as.factor
 #rename some columns

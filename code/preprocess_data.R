@@ -25,6 +25,7 @@ resultsPath <- paste(base_dir,"/results",sep = "")
 dir.create(resultsPath)
 resultsPath <- paste(resultsPath,"/DE_analysis/",sep = "")
 dir.create(resultsPath)
+source('code/annotate_proteomics.R')
 #load data
 gene_ids <- read_delim(file = 'data/ROSMAP_annotated_samples_geneIDs.txt',delim = '\t', na='NA')
 genesNoVersion <-  gsub(pattern = '.[0−9]*$',x =gene_ids$gene_ids, replacement = '')
@@ -184,7 +185,7 @@ toKeep <- which(exprn>=0.5*length(NCIidxs))
 #Identify AD and non-AD smples
 patient <- colnames(counts_matrix.processed)
 annotation$patient <- patient
-
+annotation  <- annotate_proteomics(annotation)
 write.table(annotation,file = 'data/ROSMAP_annotation_processed.txt',row.names= FALSE,col.names=TRUE,sep= "\t")
 tempMat <- adjusted[toKeep,]
 tempMat <- counts_matrix.processed[toKeep,]
